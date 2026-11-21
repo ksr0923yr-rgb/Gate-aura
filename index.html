@@ -448,6 +448,7 @@
 
   <!-- Dramatic Cutscene Overlay (Epic+ Pulls) -->
   <div id="cutsceneOverlay" class="hidden fixed inset-0 z-50 bg-black/92 flex flex-col items-center justify-center p-6 text-center select-none">
+    <div id="cutsceneReplayBadge" class="hidden absolute left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-white/10 border border-white/25 text-[11px] font-mono-num font-bold text-slate-100 tracking-widest" style="top: calc(env(safe-area-inset-top, 0px) + 18px)">▶ REPLAY（演出の再生）</div>
     <div id="cutsceneVisual" class="relative w-52 h-52 sm:w-64 sm:h-64 flex items-center justify-center mb-5">
       <div id="cutsceneRingOuter" class="absolute inset-0 rounded-full border-4 border-dashed border-amber-400 animate-spin-slow opacity-85"></div>
       <div id="cutsceneRingInner" class="absolute inset-6 rounded-full border-2 border-amber-300 animate-spin-reverse opacity-90"></div>
@@ -1019,6 +1020,17 @@
     let dexSearchQuery = '';
     let dexOnlyDiscovered = false;
 
+    // Inventory (所持オーラ) view state — 図鑑と同じ絞り込みUI
+    let invSubTab = 'auras'; // 'auras' | 'alchemy'
+    let invFilterRarity = 'ALL';
+    let invFilterPattern = 'ALL';
+    let invSearchQuery = '';
+    let invSort = 'rarity'; // 'rarity' | 'no' | 'count'
+    let invOnlyDup = false;
+
+    // 演出リプレイ中かどうか (図鑑・所持一覧から再生した時 true)
+    let cutsceneReplayMode = false;
+
     function getCurrentDisplayAura() {
       return getAuraByNo(gameState.equippedAuraNo || 1);
     }
@@ -1506,7 +1518,8 @@
       }
     }
 
-    function showCutscene(aura) {
+    function showCutscene(aura, isReplay = false) {
+      cutsceneReplayMode = isReplay;
       triggerScreenShake();
       const overlay = document.getElementById('cutsceneOverlay');
       const rarityObj = RARITIES[aura.rarity];
@@ -1532,8 +1545,24 @@
 
       document.getElementById('cutsceneRingOuter').style.borderColor = aura.color;
 
+      document.getElementById('cutsceneReplayBadge').classList.toggle('hidden', !isReplay);
+      document.getElementById('cutsceneCloseBtn').textContent = isReplay ? 'CLOSE (閉じる)' : 'CONTINUE (続ける)';
+
       overlay.classList.remove('hidden');
       if (RARITIES[aura.rarity].order >= 6) playDestiny(aura);
+    }
+
+    // ===== 演出リプレイ: 発見済みオーラの「引いた時の演出」をいつでも再生 =====
+    function replayAuraEffect(auraNo) {
+      const aura = getAuraByNo(auraNo);
+      const seen = (gameState.discovered[aura.no] || 0) > 0 || (gameState.inventory[aura.no] || 0) > 0;
+      if (!seen) {
+        showToast('🔒 未発見のオーラの演出は見られません');
+        return;
+      }
+      if (isRolling || DESTINY) return;
+      sfx.playPullResult(RARITIES[aura.rarity].order);
+      showCutscene(aura, true);
     }
 
     // ===== 確定演出 (Legendary / Mythical / Secret) =====
@@ -1709,6 +1738,8 @@
     function closeCutscene() {
       if (DESTINY) { advanceDestiny(); return; }
       sfx.playClick();
+      cutsceneReplayMode = false;
+      document.getElementById('cutsceneReplayBadge').classList.add('hidden');
       document.getElementById('cutsceneOverlay').classList.add('hidden');
       if (autoRollEnabled && document.getElementById('multiRollModal').classList.contains('hidden')) {
         scheduleNextAutoRoll();
@@ -1739,7 +1770,7 @@
       if (!autoRollEnabled) return;
       const delay = gameState.settings.fastRoll ? 150 : 360;
       autoRollTimer = setTimeout(() => {
-        if (autoRollEnabled && !isRolling) {
+        if (autoRollEnabled && !isRolling && !cutsceneReplayMode) {
           triggerRoll(1);
         }
       }, delay);
@@ -1817,7 +1848,7 @@
       spawnBurstParticles(getAuraByNo(no).color, 36);
       saveGame();
       updateAllUI();
-      if (currentTab === 'inventory') renderTabContent('inventory');
+      refreshInventoryView();
     }
 
     function toggleLockAura(auraNo) {
@@ -1825,7 +1856,7 @@
       sfx.playClick();
       gameState.lockedAuras[no] = !gameState.lockedAuras[no];
       saveGame();
-      if (currentTab === 'inventory') renderTabContent('inventory');
+      refreshInventoryView();
     }
 
     function convertDuplicateAuras(specificAuraNo = null) {
@@ -1852,7 +1883,7 @@
         showToast(`💠 ${totalConverted}個の重複オーラを ${formatNumber(totalGained)} エーテルに変換！`);
         saveGame();
         updateAllUI();
-        if (currentTab === 'inventory') renderTabContent('inventory');
+        refreshInventoryView();
       } else {
         showToast('変換可能な重複オーラがありません（各1個は保護されます）');
       }
@@ -2185,6 +2216,79 @@
       });
     }
 
+    // ===== オーラカード (図鑑 / 所持一覧 共通デザイン) =====
+    function escapeAttr(v) {
+      return String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+
+    function replayBtnHTML(a, extraClass = '') {
+      return `<button onclick="replayAuraEffect(${a.no})" title="引いた時の演出を再生" class="px-2.5 py-1.5 rounded-lg bg-purple-600/40 hover:bg-purple-600/65 border border-purple-400/50 text-purple-100 text-[11px] font-bold whitespace-nowrap cursor-pointer ${extraClass}">▶ 演出</button>`;
+    }
+
+    function auraCardHTML(a, mode) {
+      const r = RARITIES[a.rarity];
+      const foundCount = gameState.discovered[a.no] || 0;
+      const cnt = gameState.inventory[a.no] || 0;
+      const isInv = mode === 'inv';
+      const seen = foundCount > 0 || cnt > 0;
+      const isEq = gameState.equippedAuraNo === a.no;
+      const isLocked = !!gameState.lockedAuras[a.no];
+
+      const nameStyle = seen && a.rarity !== 'S' ? `color:${a.color}` : '';
+      const nameCls = seen && a.rarity === 'S' ? 'text-rainbow' : '';
+
+      const footer = isInv
+        ? `
+            <div class="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2 border-t border-white/10 text-[11px]">
+              <button onclick="equipAura(${a.no})" ${isEq ? 'disabled' : ''} class="flex-1 min-w-[88px] py-1.5 rounded-lg text-[11px] font-bold transition ${isEq ? 'bg-amber-400/25 text-amber-300 cursor-default' : 'bg-white/10 hover:bg-white/20 text-white cursor-pointer'}">
+                ${isEq ? '✔ 装備中' : '装備する'}
+              </button>
+              ${replayBtnHTML(a)}
+              <button onclick="toggleLockAura(${a.no})" class="px-2 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-sm leading-none cursor-pointer" title="${isLocked ? 'ロック解除' : '誤分解防止ロック'}">${isLocked ? '🔒' : '🔓'}</button>
+              ${cnt > 1 ? `<button onclick="convertDuplicateAuras(${a.no})" class="px-2 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 text-[11px] font-mono-num font-bold cursor-pointer">+${formatNumber(r.aetherValue * (cnt - 1))}💠</button>` : ''}
+            </div>`
+        : `
+            <div class="flex items-center justify-between gap-1.5 mt-2.5 pt-2 border-t border-white/10 text-[11px]">
+              <span class="font-mono-num ${seen ? 'text-emerald-300 font-bold' : 'text-slate-200'}">
+                ${seen ? `獲得 ${foundCount}回` : '未発見'}
+              </span>
+              ${seen ? replayBtnHTML(a) : ''}
+            </div>`;
+
+      return `
+        <div class="glass-card rounded-2xl p-3 flex flex-col justify-between ${isInv && isEq ? 'ring-2 ring-amber-400 bg-amber-950/25' : (!seen ? 'opacity-90' : '')}">
+          <div>
+            <div class="flex items-center justify-between gap-1 mb-1">
+              <div class="flex items-center gap-1.5">
+                <span class="font-mono-num text-[11px] font-bold text-slate-100">No.${a.no}</span>
+                ${isInv ? `<span class="font-mono-num text-[11px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-slate-100">×${cnt}</span>` : ''}
+              </div>
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-display font-bold border ${r.bgClass}">${r.code}・${r.jpName}</span>
+            </div>
+
+            <div class="flex items-center gap-1.5 mt-0.5">
+              <span class="w-3 h-3 rounded-full shrink-0 border border-white/40" style="background-color: ${a.color}; box-shadow: 0 0 8px ${a.color}"></span>
+              <div class="font-display font-black text-sm truncate ${nameCls}" style="${nameStyle}">
+                ${seen ? a.name : `？？？ (${a.name})`}
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-1 mt-1.5 text-[11px]">
+              <span class="px-1.5 py-0.5 rounded bg-white/10 text-slate-100">${a.patternName}</span>
+              <span class="px-1.5 py-0.5 rounded bg-white/10 text-slate-100">${a.extraName}</span>
+              <span class="font-mono-num px-1.5 py-0.5 rounded bg-white/10 text-slate-100">粒子${a.particles}</span>
+            </div>
+
+            <div class="font-mono-num text-[11px] text-slate-100 mt-1.5">
+              ${formatProbPercent(a.baseProbPercent)} <span class="text-slate-200">(1 in ${formatNumber(a.oneIn)})</span>
+            </div>
+            ${isInv ? `<div class="text-[11px] text-amber-200 mt-1">${a.perkText}</div>` : ''}
+          </div>
+          ${footer}
+        </div>
+      `;
+    }
+
     function renderCollectionGridOnly() {
       const gridEl = document.getElementById('dexGridContainer');
       const countEl = document.getElementById('dexFilteredCount');
@@ -2193,45 +2297,115 @@
       const filtered = getFilteredAuras();
       if (countEl) countEl.textContent = `${filtered.length} 件表示`;
 
-      gridEl.innerHTML = filtered.map(a => {
-        const r = RARITIES[a.rarity];
-        const foundCount = gameState.discovered[a.no] || 0;
-        const isDiscovered = foundCount > 0;
+      gridEl.innerHTML = filtered.map(a => auraCardHTML(a, 'dex')).join('');
+    }
 
-        return `
-          <div class="glass-card rounded-2xl p-3 flex flex-col justify-between ${!isDiscovered ? 'opacity-90' : ''}">
-            <div>
-              <div class="flex items-center justify-between gap-1 mb-1">
-                <span class="font-mono-num text-[11px] font-bold text-slate-100">No.${a.no}</span>
-                <span class="px-1.5 py-0.5 rounded text-[10px] font-display font-bold border ${r.bgClass}">${r.code}・${r.jpName}</span>
-              </div>
+    // ===== 所持オーラ一覧 (図鑑と同じ検索・絞り込み) =====
+    function setInvSubTab(tab) {
+      sfx.playClick();
+      invSubTab = tab;
+      renderTabContent('inventory');
+    }
+    function setInvRarityFilter(code) {
+      sfx.playClick();
+      invFilterRarity = code;
+      renderTabContent('inventory');
+    }
+    function setInvPatternFilter(patIdx) {
+      sfx.playClick();
+      invFilterPattern = patIdx;
+      renderTabContent('inventory');
+    }
+    function setInvSort(mode) {
+      sfx.playClick();
+      invSort = mode;
+      renderTabContent('inventory');
+    }
+    function toggleInvOnlyDup() {
+      sfx.playClick();
+      invOnlyDup = !invOnlyDup;
+      renderTabContent('inventory');
+    }
+    function setInvSearch(val) {
+      invSearchQuery = val;
+      renderInventoryGridOnly();
+    }
 
-              <div class="flex items-center gap-1.5 mt-0.5">
-                <span class="w-3 h-3 rounded-full shrink-0 border border-white/40" style="background-color: ${a.color}; box-shadow: 0 0 8px ${a.color}"></span>
-                <div class="font-display font-black text-sm truncate ${isDiscovered && a.rarity === 'S' ? 'text-rainbow' : ''}" style="${isDiscovered && a.rarity !== 'S' ? `color:${a.color}` : ''}">
-                  ${isDiscovered ? a.name : `？？？ (${a.name})`}
-                </div>
-              </div>
+    function getOwnedAuras() {
+      return AURAS.filter(a => (gameState.inventory[a.no] || 0) > 0);
+    }
 
-              <div class="flex flex-wrap gap-1 mt-1.5 text-[11px]">
-                <span class="px-1.5 py-0.5 rounded bg-white/10 text-slate-100">${a.patternName}</span>
-                <span class="px-1.5 py-0.5 rounded bg-white/10 text-slate-100">${a.extraName}</span>
-                <span class="font-mono-num px-1.5 py-0.5 rounded bg-white/10 text-slate-100">粒子${a.particles}</span>
-              </div>
+    function getFilteredOwned() {
+      const q = invSearchQuery.trim().toLowerCase();
+      const list = getOwnedAuras().filter(a => {
+        if (invFilterRarity !== 'ALL' && a.rarity !== invFilterRarity) return false;
+        if (invFilterPattern !== 'ALL' && a.patternIdx !== Number(invFilterPattern)) return false;
+        if (invOnlyDup && (gameState.inventory[a.no] || 0) < 2) return false;
+        if (q) {
+          const matchNo = String(a.no) === q || `no.${a.no}`.includes(q) || `#${a.no}` === q;
+          const matchName = a.name.toLowerCase().includes(q) || a.patternName.includes(q);
+          if (!matchNo && !matchName) return false;
+        }
+        return true;
+      });
+      if (invSort === 'rarity') {
+        list.sort((a, b) => RARITIES[b.rarity].order - RARITIES[a.rarity].order || a.no - b.no);
+      } else if (invSort === 'count') {
+        list.sort((a, b) => (gameState.inventory[b.no] || 0) - (gameState.inventory[a.no] || 0) || a.no - b.no);
+      } else {
+        list.sort((a, b) => a.no - b.no);
+      }
+      return list;
+    }
 
-              <div class="font-mono-num text-[11px] text-slate-100 mt-1.5">
-                ${formatProbPercent(a.baseProbPercent)} <span class="text-slate-200">(1 in ${formatNumber(a.oneIn)})</span>
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between gap-1.5 mt-2.5 pt-2 border-t border-white/10 text-[11px]">
-              <span class="font-mono-num ${isDiscovered ? 'text-emerald-300 font-bold' : 'text-slate-200'}">
-                ${isDiscovered ? `獲得 ${foundCount}回` : '未発見'}
-              </span>
-            </div>
+    function renderInventorySummary() {
+      const el = document.getElementById('invSummary');
+      if (!el) return;
+      const owned = getOwnedAuras();
+      const pct = ((owned.length / AURAS.length) * 100).toFixed(1);
+      let totalItems = 0, dupItems = 0, dupValue = 0;
+      owned.forEach(a => {
+        const c = gameState.inventory[a.no] || 0;
+        totalItems += c;
+        if (c > 1) { dupItems += c - 1; dupValue += RARITIES[a.rarity].aetherValue * (c - 1); }
+      });
+      el.innerHTML = `
+        <div class="glass-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div class="text-xs text-slate-100">所持オーラ</div>
+            <div class="font-display text-xl font-black text-white">${owned.length} / ${AURAS.length} <span class="text-sm text-purple-300">(${pct}%)</span></div>
+            <div class="font-mono-num text-[11px] text-slate-200 mt-0.5">総所持 ${formatNumber(totalItems)}個 ・ 重複 ${formatNumber(dupItems)}個</div>
           </div>
-        `;
-      }).join('');
+          <div class="w-44 sm:w-64 h-3 bg-slate-950/80 rounded-full overflow-hidden border border-white/15">
+            <div class="h-full bg-gradient-to-r from-sky-400 via-purple-500 to-pink-500" style="width: ${pct}%"></div>
+          </div>
+          <button onclick="convertDuplicateAuras()" class="px-3 py-2 rounded-xl bg-cyan-500/25 hover:bg-cyan-500/35 border border-cyan-400/45 text-cyan-200 text-xs font-bold transition cursor-pointer">
+            💠 重複を一括エーテル変換${dupItems > 0 ? ` (+${formatNumber(dupValue)})` : ''}
+          </button>
+        </div>
+      `;
+    }
+
+    function renderInventoryGridOnly() {
+      const gridEl = document.getElementById('invGridContainer');
+      const countEl = document.getElementById('invFilteredCount');
+      if (!gridEl) return;
+      const list = getFilteredOwned();
+      if (countEl) countEl.textContent = `${list.length} 件表示`;
+      gridEl.innerHTML = list.length
+        ? list.map(a => auraCardHTML(a, 'inv')).join('')
+        : `<div class="col-span-full text-center text-xs text-slate-200 py-10">条件に合う所持オーラがありません</div>`;
+    }
+
+    // 装備・ロック・変換のあとにスクロール位置を保ったまま一覧を更新
+    function refreshInventoryView() {
+      if (currentTab !== 'inventory') return;
+      if (invSubTab === 'auras' && document.getElementById('invGridContainer')) {
+        renderInventorySummary();
+        renderInventoryGridOnly();
+      } else {
+        renderTabContent('inventory');
+      }
     }
 
     function renderTabContent(tabName) {
@@ -2298,59 +2472,23 @@
         `;
         renderCollectionGridOnly();
       } else if (tabName === 'inventory') {
-        const ownedList = AURAS
-          .filter(a => (gameState.inventory[a.no] || 0) > 0)
-          .sort((a, b) => RARITIES[b.rarity].order - RARITIES[a.rarity].order || b.no - a.no);
+        const owned = getOwnedAuras();
+        const ownedByRarity = {};
+        RARITY_ORDER_LIST.forEach(c => { ownedByRarity[c] = owned.filter(a => a.rarity === c).length; });
 
-        body.innerHTML = `
-          <div>
-            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-              <h4 class="font-bold text-sm text-slate-100">✨ 所持オーラ一覧 (${ownedList.length}種)</h4>
-              <button onclick="convertDuplicateAuras()" class="px-3 py-1.5 rounded-xl bg-cyan-500/25 hover:bg-cyan-500/35 border border-cyan-400/45 text-cyan-200 text-xs font-bold transition cursor-pointer">
-                💠 重複オーラを一括エーテル変換
-              </button>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              ${ownedList.map(a => {
-                const r = RARITIES[a.rarity];
-                const cnt = gameState.inventory[a.no] || 0;
-                const isEq = gameState.equippedAuraNo === a.no;
-                const isLocked = !!gameState.lockedAuras[a.no];
-                return `
-                  <div class="glass-card rounded-2xl p-3.5 flex flex-col justify-between ${isEq ? 'ring-2 ring-amber-400 bg-amber-950/25' : ''}">
-                    <div>
-                      <div class="flex items-center justify-between gap-1 mb-1">
-                        <div class="flex items-center gap-1.5">
-                          <span class="font-mono-num text-[11px] text-slate-200">No.${a.no}</span>
-                          <span class="px-2 py-0.5 rounded-full text-[11px] font-display font-bold border ${r.bgClass}">${r.code}・${r.jpName}</span>
-                        </div>
-                        <div class="flex items-center gap-1.5">
-                          <span class="font-mono-num text-xs font-bold text-slate-100">×${cnt}</span>
-                          <button onclick="toggleLockAura(${a.no})" class="text-sm hover:scale-110 transition cursor-pointer" title="${isLocked ? 'ロック解除' : '誤分解防止ロック'}">
-                            ${isLocked ? '🔒' : '🔓'}
-                          </button>
-                        </div>
-                      </div>
-                      <div class="font-display font-bold text-base" style="color: ${a.color}">${a.name}</div>
-                      <div class="text-[12px] text-slate-100 mt-0.5">演出: ${a.patternName} | 追加: ${a.extraName} | 粒子: ${a.particles}</div>
-                      <div class="text-[12px] text-amber-200 mt-0.5">${a.perkText}</div>
-                    </div>
-                    <div class="flex items-center gap-2 mt-3 pt-2 border-t border-white/10">
-                      <button onclick="equipAura(${a.no})" ${isEq ? 'disabled' : ''} class="flex-1 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${isEq ? 'bg-amber-400/25 text-amber-300 cursor-default' : 'bg-white/15 hover:bg-white/25 text-white'}">
-                        ${isEq ? '✔ 装備中' : '装備する'}
-                      </button>
-                      ${cnt > 1 ? `
-                        <button onclick="convertDuplicateAuras(${a.no})" class="px-2.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 text-[12px] font-mono-num font-bold cursor-pointer">
-                          +${r.aetherValue * (cnt - 1)}💠
-                        </button>
-                      ` : ''}
-                    </div>
-                  </div>
-                `;
-              }).join('')}
-            </div>
+        const subTabsHtml = `
+          <div class="flex items-center gap-1.5">
+            <button onclick="setInvSubTab('auras')" class="flex-1 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${invSubTab === 'auras' ? 'bg-purple-600/45 text-white border-purple-400/50' : 'bg-white/5 text-slate-100 border-white/10 hover:bg-white/15'}">
+              ✨ 所持オーラ (${owned.length}種)
+            </button>
+            <button onclick="setInvSubTab('alchemy')" class="flex-1 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${invSubTab === 'alchemy' ? 'bg-purple-600/45 text-white border-purple-400/50' : 'bg-white/5 text-slate-100 border-white/10 hover:bg-white/15'}">
+              🧪 錬金・Luck強化
+            </button>
           </div>
+        `;
 
+        if (invSubTab === 'alchemy') {
+          body.innerHTML = subTabsHtml + `
           <div class="pt-4 border-t border-white/10">
             <h4 class="font-bold text-sm text-slate-100 mb-3">🧪 エーテル錬金術 (Luckポーション作成・使用)</h4>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2410,7 +2548,69 @@
               }).join('')}
             </div>
           </div>
-        `;
+          `;
+        } else {
+          const sortBtn = (key, label) => `
+            <button onclick="setInvSort('${key}')" class="px-2.5 py-1 rounded-lg text-[12px] font-bold whitespace-nowrap cursor-pointer ${invSort === key ? 'bg-amber-500/35 text-amber-100 border border-amber-400/60' : 'bg-white/5 text-slate-100 hover:bg-white/15'}">${label}</button>`;
+
+          body.innerHTML = subTabsHtml + `
+            <div id="invSummary"></div>
+
+            <!-- Search & Filter Controls -->
+            <div class="space-y-2.5">
+              <div class="flex flex-wrap items-center gap-2">
+                <input type="text" value="${escapeAttr(invSearchQuery)}" oninput="setInvSearch(this.value)" placeholder="🔍 所持オーラを名前または No. で検索..." class="flex-1 min-w-[200px] bg-slate-950/80 border border-white/20 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-purple-400">
+                <button onclick="toggleInvOnlyDup()" class="px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${invOnlyDup ? 'bg-emerald-500/30 text-emerald-200 border-emerald-400/60' : 'bg-white/10 text-slate-100 border-white/15'}">
+                  ${invOnlyDup ? '✔ 重複ありのみ' : '重複ありのみ'}
+                </button>
+                <span id="invFilteredCount" class="font-mono-num text-xs text-slate-100 px-2"></span>
+              </div>
+
+              <!-- Sort -->
+              <div class="flex items-center gap-1.5 overflow-x-auto pb-1">
+                <span class="text-[12px] text-slate-200 whitespace-nowrap">並び順:</span>
+                ${sortBtn('rarity', 'レア度順')}
+                ${sortBtn('no', 'No.順')}
+                ${sortBtn('count', '所持数順')}
+              </div>
+
+              <!-- 8 Rarity Filter Pills (所持数) -->
+              <div class="flex items-center gap-1.5 overflow-x-auto pb-1">
+                <button onclick="setInvRarityFilter('ALL')" class="px-2.5 py-1 rounded-lg text-[12px] font-bold whitespace-nowrap cursor-pointer ${invFilterRarity === 'ALL' ? 'bg-purple-600 text-white' : 'bg-white/10 text-slate-100 hover:bg-white/20'}">
+                  全希少度 (${owned.length})
+                </button>
+                ${RARITY_ORDER_LIST.map(code => {
+                  const r = RARITIES[code];
+                  const active = invFilterRarity === code;
+                  return `
+                    <button onclick="setInvRarityFilter('${code}')" class="px-2.5 py-1 rounded-lg text-[12px] font-bold whitespace-nowrap border cursor-pointer ${active ? r.bgClass + ' ring-1 ring-white/50' : 'bg-white/5 text-slate-100 border-white/10 hover:bg-white/15'} ${ownedByRarity[code] === 0 && !active ? 'opacity-50' : ''}">
+                      ${r.code} (${ownedByRarity[code]})
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+
+              <!-- 10 Pattern Filter Pills -->
+              <div class="flex items-center gap-1.5 overflow-x-auto pb-1">
+                <button onclick="setInvPatternFilter('ALL')" class="px-2.5 py-1 rounded-lg text-[12px] font-bold whitespace-nowrap cursor-pointer ${invFilterPattern === 'ALL' ? 'bg-sky-600 text-white' : 'bg-white/10 text-slate-100 hover:bg-white/20'}">
+                  全10演出
+                </button>
+                ${PATTERNS.map((pName, idx) => {
+                  const active = String(invFilterPattern) === String(idx);
+                  return `
+                    <button onclick="setInvPatternFilter(${idx})" class="px-2.5 py-1 rounded-lg text-[12px] font-bold whitespace-nowrap cursor-pointer ${active ? 'bg-sky-500/40 text-sky-100 border border-sky-400/60' : 'bg-white/5 text-slate-100 hover:bg-white/15'}">
+                      ${pName}
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            <div id="invGridContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5"></div>
+          `;
+          renderInventorySummary();
+          renderInventoryGridOnly();
+        }
       } else if (tabName === 'stats') {
         const s = gameState.stats;
         const bestAura = getAuraByNo(s.highestAuraNo);
