@@ -201,6 +201,7 @@
     #equippedBanner .bg-white\/10 { background: rgba(8, 12, 26, 0.6); }
     body.top-collapsed #hdrLeft, body.top-collapsed #activePotionsBar, body.top-collapsed #stageTagRow { display: none !important; }
     body.bottom-collapsed #quickPotionWrap, body.bottom-collapsed #bottomNav { display: none !important; }
+    #destinyRank, #destinyName { transition: opacity 0.7s ease, transform 0.2s ease; }
     .text-rainbow {
       background: linear-gradient(90deg, #ff3b3b, #ffbe0b, #00f5d4, #3b82f6, #c084fc, #ff3b3b);
       background-size: 300% auto;
@@ -471,6 +472,18 @@
     <button id="cutsceneCloseBtn" onclick="closeCutscene()" class="px-8 py-3 rounded-full bg-white text-slate-950 font-display font-black text-sm tracking-wider hover:scale-105 transition shadow-[0_0_30px_rgba(255,255,255,0.65)] cursor-pointer">
       CONTINUE (続ける)
     </button>
+  </div>
+
+  <!-- 確定演出 (Legendary / Mythical / Secret) -->
+  <div id="destinyLayer" class="hidden fixed inset-0 bg-black select-none" style="z-index:60" onclick="advanceDestiny()">
+    <canvas id="destinyCanvas" class="absolute inset-0 w-full h-full"></canvas>
+    <div class="absolute inset-x-0 px-5 text-center pointer-events-none" style="top:58%">
+      <div id="destinyRank" class="font-display text-sm sm:text-lg font-black tracking-[0.3em] mb-2" style="opacity:0"></div>
+      <div id="destinyName" class="font-display text-3xl sm:text-5xl font-black tracking-wider" style="opacity:0"></div>
+      <p id="destinyLine" class="mt-5 text-base sm:text-2xl font-bold text-white leading-relaxed min-h-[3.5rem]" style="text-shadow:0 0 12px rgba(255,255,255,0.55),0 2px 4px #000"></p>
+    </div>
+    <div id="destinyTap" class="absolute bottom-8 inset-x-0 text-center text-xs sm:text-sm text-slate-200 animate-pulse" style="opacity:0">▶ タップして結果を見る</div>
+    <div class="absolute top-3 right-4 text-[11px] text-slate-300">タップでスキップ</div>
   </div>
 
   <!-- Custom Confirm / Import JSON Modal -->
@@ -1400,7 +1413,7 @@
         showMultiRollModal(results, totalAetherConverted);
       }
 
-      if (topRarity.order >= gameState.settings.cutsceneThreshold) {
+      if (topRarity.order >= 6 || topRarity.order >= gameState.settings.cutsceneThreshold) {
         showCutscene(topAura);
       } else if (topRarity.order >= 4) {
         triggerScreenShake();
@@ -1508,7 +1521,10 @@
       }`;
 
       document.getElementById('cutsceneProbText').textContent = `${formatProbPercent(aura.baseProbPercent)}  (1 in ${formatNumber(aura.oneIn)})`;
-      document.getElementById('cutsceneDescText').textContent = `演出パターン: ${aura.patternName} / 追加演出: ${aura.extraName} / 粒子数: ${aura.particles}`;
+      const flavor = DESTINY_LINES[aura.name];
+      const descEl = document.getElementById('cutsceneDescText');
+      descEl.style.whiteSpace = 'pre-line';
+      descEl.textContent = `${flavor ? '「' + flavor + '」\n' : ''}演出パターン: ${aura.patternName} / 追加演出: ${aura.extraName} / 粒子数: ${aura.particles}`;
 
       const starSvg = document.getElementById('cutsceneStarSvg');
       starSvg.style.color = aura.color;
@@ -1517,9 +1533,181 @@
       document.getElementById('cutsceneRingOuter').style.borderColor = aura.color;
 
       overlay.classList.remove('hidden');
+      if (RARITIES[aura.rarity].order >= 6) playDestiny(aura);
+    }
+
+    // ===== 確定演出 (Legendary / Mythical / Secret) =====
+    const DESTINY_THEME = {
+      L: { label: 'LEGENDARY // 伝説降臨', color: '#fb923c', dur: 5600, fallback: '伝説が、いま目を覚ます…' },
+      M: { label: 'MYTHICAL // 神話顕現', color: '#e879f9', dur: 6600, fallback: '神話が、静かに書き換わる…' },
+      S: { label: 'SECRET // 観測不能', color: '#22d3ee', dur: 7600, fallback: '観測してはならない何かが、そこにいる…' }
+    };
+    const DESTINY_LINES = {
+      // --- Secret ---
+      '？？？': 'それは、まだ名前を持たない何か…',
+      '名もなき光': 'その光は、どこからともなく湧いてくる…',
+      '404 NOT FOUND': '存在しないはずの場所から、声がする…',
+      '開発者の秘密': 'ソースコードの奥に、隠された扉があった…',
+      '観測者': '見つめた瞬間、世界は確定する…',
+      '0.0000000000001%の奇跡': '奇跡は、数えきれない沈黙の果てに…',
+      '最後の一滴': '最後の一滴が、器をあふれさせる…',
+      'Aura∞': '終わりのない光が、静かに目を開く…',
+      'Null∞': '空っぽの中に、無限が棲んでいた…',
+      'ERROR_AURA': '警告：理解の範囲を超えています…',
+      'Ω': '始まりの文字は、終わりの文字でもある…',
+      '観測不能': '見えない。けれど確かに、そこにいる…',
+      '開発者のため息': '「まさか、本当に引くとは…」',
+      '∞の向こう側': '数字が終わる場所で、何かが待っていた…',
+      'Aura∞∞': '無限は、さらに無限を産み落とす…',
+      'THE LAST ROLL': 'これが、最後の一回かもしれない…',
+      // --- Mythical ---
+      '無限回廊': '扉を開けるたび、扉が増えていく…',
+      '絶対零度の王': '世界の音が、すべて凍りつく…',
+      'アカシックレコード': '宇宙のすべての記憶が、ここにある…',
+      '神々の黄昏': '神々は静かに、最後の宴を終えた…',
+      '万象の源': 'あらゆるものは、この一点から始まった…',
+      '零の特異点': '時間も距離も、ゼロへと崩れていく…',
+      '因果律の破壊者': '原因なき結果が、世界を書き換える…',
+      '次元の彼方': '壁の向こうに、もうひとつの空があった…',
+      '虚無の王冠': '何もない玉座に、冠だけが輝いている…',
+      '終末の詩': '最後の頁には、一行だけ書かれていた…',
+      '天地開闢': '光と闇が、いま分かたれる…',
+      '全知の瞳': 'その瞳は、あなたの未来まで見ている…',
+      '世界の果て': '地図の端には、何も描かれていなかった…',
+      '因果の外側': '運命の糸が、一本残らずほどけていく…',
+      '星々の墓標': '消えた星々が、夜空に名前を刻む…',
+      '無限の螺旋': '降りても降りても、まだ底は見えない…',
+      '原初の沈黙': '最初の音が生まれる、その一瞬前…',
+      '時の終着': '時計の針は、静かに止まった…',
+      '神殺しの刃': '抜かれた刃に、神々が息をのむ…',
+      '夢の最果て': '目覚めてもなお、夢は続いていた…',
+      '宇宙卵': '殻の内側で、新しい宇宙が脈打つ…',
+      '絶対なる無': '「無」すら、そこには存在しない…',
+      // --- Legendary ---
+      '太陽神の冠': '東の空が、黄金に燃え上がる…',
+      '月読の微笑': '静かな月が、あなたにだけ微笑む…',
+      '天照': '闇を裂いて、光の神が姿を現す…',
+      '九尾の狐火': '九つの尾が、夜を青く照らす…',
+      '八岐の大蛇': '八つの首が、一斉に目を覚ます…',
+      '世界樹の息吹': '千年の葉が、風とともに歌い出す…',
+      '不死鳥の再誕': '灰の中から、炎の翼が立ち上がる…',
+      '雷神の太鼓': '天が鳴り、大地が震える…',
+      '海神の三叉': '三つの穂先が、海を二つに割った…',
+      '冥王の吐息': '冷たい風が、足元をなでていく…',
+      '天女の羽衣': '雲の上から、やわらかな光が降りてくる…',
+      '星の誕生': '暗闇の中、ひとつの光が産声をあげる…',
+      '創世の光': '「光あれ」――世界が目を開く…',
+      '終焉の炎': 'すべてを灼く炎が、静かに近づく…',
+      '時の砂時計': '落ちる砂の一粒に、永遠が宿る…',
+      '運命の糸': '指先で、赤い糸が小さく震えた…',
+      '龍神の祝福': '雲を割り、龍が祝福の声を響かせる…',
+      '神域の静寂': '音のない世界に、祈りだけが響く…',
+      '宇宙の鼓動': 'どくん――宇宙が、ひとつ脈を打った…',
+      '永遠の黎明': '夜明けは、終わらないまま続いていく…',
+      '創世の竜王': '最初の竜が、世界に翼を広げる…',
+      '終焉の天使': '白い翼が、終わりの鐘を鳴らす…',
+      '時喰いの魔神': '気づけば、一秒が消えていた…',
+      '星間の旅人': '星から星へ、旅人は光を運ぶ…',
+      '絶対の守護者': 'その背中の後ろに、恐れはない…',
+      '黄金の方舟': '大いなる船が、新世界へ漕ぎ出す…',
+      '虚空の巫女': '何もない空へ、祈りが昇っていく…',
+      '天空の裁定者': '雲の上から、公正な光が降り注ぐ…',
+      '銀河の織り手': '星の糸が、夜空に模様を織りなす…',
+      '始原の炎': '最初の炎が、最初の影をつくった…',
+      '永劫の月': '朽ちることのない月が、昇り続ける…',
+      '神話の終端': '語り継がれた物語が、いま完結する…'
+    };
+    let DESTINY = null;
+
+    function playDestiny(aura) {
+      const th = DESTINY_THEME[aura.rarity];
+      if (!th) return;
+      if (DESTINY) cancelAnimationFrame(DESTINY.raf);
+      const layer = document.getElementById('destinyLayer'), cv = document.getElementById('destinyCanvas');
+      const rankEl = document.getElementById('destinyRank'), nameEl = document.getElementById('destinyName');
+      const lineEl = document.getElementById('destinyLine'), tapEl = document.getElementById('destinyTap');
+      const line = DESTINY_LINES[aura.name] || th.fallback, col = th.color, T = th.dur;
+      const isS = aura.rarity === 'S', isM = aura.rarity === 'M';
+      const dpr = Math.min(window.devicePixelRatio || 1, 2), W = window.innerWidth, H = window.innerHeight;
+      cv.width = Math.floor(W * dpr); cv.height = Math.floor(H * dpr);
+      const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+      rankEl.textContent = th.label; rankEl.style.color = col; rankEl.style.opacity = '0';
+      nameEl.textContent = aura.name; nameEl.style.opacity = '0'; nameEl.style.transform = '';
+      nameEl.className = 'font-display text-3xl sm:text-5xl font-black tracking-wider ' + (isS ? 'text-rainbow animate-glitch' : 'text-white');
+      nameEl.style.textShadow = isS ? '' : `0 0 24px ${col}, 0 0 48px ${col}`;
+      lineEl.textContent = ''; lineEl.dataset.n = '-1'; tapEl.style.opacity = '0';
+      layer.style.transform = ''; layer.classList.remove('hidden');
+      const parts = Array.from({ length: 110 }, () => ({ a: Math.random() * 6.2832, r: 0.3 + Math.random() * 0.8, w: 0.6 + Math.random() * 0.9 }));
+      const cx = W / 2, cy = H * 0.34, maxR = Math.hypot(W, H) * 0.55;
+      const st = { T, done: false, raf: 0, start: performance.now() };
+      DESTINY = st;
+      const glow = (rad, a) => {
+        const g = c.createRadialGradient(cx, cy, 0, cx, cy, rad);
+        g.addColorStop(0, '#fff'); g.addColorStop(0.35, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+        c.globalAlpha = a; c.fillStyle = g; c.beginPath(); c.arc(cx, cy, rad, 0, 6.2832); c.fill();
+      };
+      const frame = (now) => {
+        const e = now - st.start, flashAt = T * 0.38, g = Math.min(1, e / flashAt), rev = e > T * 0.4;
+        c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+        c.fillStyle = 'rgba(0,0,0,0.22)'; c.fillRect(0, 0, W, H);
+        c.globalCompositeOperation = 'lighter';
+        if (!rev) {
+          // 前半: 光の粒が中心へ収束 (Lは直線 / Mは渦 / Sはノイズ)
+          const ease = g * g;
+          parts.forEach(p => {
+            const a = p.a + (isM ? ease * 4 * p.w : isS ? (Math.random() - 0.5) * 0.3 : 0);
+            const r1 = p.r * maxR * (1 - ease), r0 = p.r * maxR * (1 - Math.max(0, ease - 0.14));
+            c.globalAlpha = 0.25 + 0.6 * g; c.strokeStyle = col; c.lineWidth = 1 + p.w;
+            c.beginPath(); c.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); c.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); c.stroke();
+          });
+          if (isS) for (let i = 0; i < 26 * g; i++) { c.globalAlpha = 0.5 * g; c.fillStyle = i % 3 ? '#22d3ee' : '#ff0055'; c.fillRect(Math.random() * W, Math.random() * H, 20 + Math.random() * 90, 2); }
+          glow((10 + 80 * ease) * (1 + 0.15 * Math.sin(e / (140 - 90 * g))), 0.4 + 0.6 * g);
+        } else {
+          // 後半: 閃光のあと、衝撃波 + ランク別モーション
+          const k = (e - T * 0.4) / 1000;
+          for (let i = 0; i < 4; i++) { const f = (k * 0.8 + i * 0.25) % 1; c.globalAlpha = (1 - f) * 0.75; c.strokeStyle = col; c.lineWidth = 2 + 7 * (1 - f); c.beginPath(); c.arc(cx, cy, f * maxR * 0.8, 0, 6.2832); c.stroke(); }
+          if (!isS && !isM) {
+            for (let i = 0; i < 16; i++) { const a = i * 0.3927 + k * 0.45, len = maxR * (0.7 + 0.3 * Math.sin(k * 3 + i)); c.globalAlpha = 0.3; c.fillStyle = col; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(a - 0.05) * len, cy + Math.sin(a - 0.05) * len); c.lineTo(cx + Math.cos(a + 0.05) * len, cy + Math.sin(a + 0.05) * len); c.closePath(); c.fill(); }
+          } else if (isM) {
+            for (let arm = 0; arm < 3; arm++) { c.globalAlpha = 0.55; c.strokeStyle = col; c.lineWidth = 2.5; c.beginPath(); for (let j = 0; j <= 60; j++) { const f = j / 60, a = arm * 2.094 + f * 6 - k * 1.4, r = f * maxR * 0.75; if (j) c.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); else c.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } c.stroke(); }
+          } else {
+            for (let i = 0; i < 12; i++) { c.globalAlpha = 0.3; c.fillStyle = ['#22d3ee', '#ff0055', '#ffffff'][i % 3]; c.fillRect(Math.random() * W * 0.4, Math.random() * H, W * (0.3 + Math.random() * 0.7), 2 + Math.random() * 5); }
+            [['#ff0055', -6], ['#00ffff', 6]].forEach(([cc, dx]) => { c.globalAlpha = 0.6; c.strokeStyle = cc; c.lineWidth = 3; c.beginPath(); c.arc(cx + dx + (Math.random() - 0.5) * 6, cy, 90 + Math.sin(k * 4) * 12, 0, 6.2832); c.stroke(); });
+          }
+          glow(70 + 14 * Math.sin(k * 5), 0.9);
+        }
+        c.globalCompositeOperation = 'source-over';
+        if (e > flashAt && e < flashAt + 700) { c.globalAlpha = 1 - (e - flashAt) / 700; c.fillStyle = '#fff'; c.fillRect(0, 0, W, H); }
+        c.globalAlpha = 1;
+        layer.style.transform = (e > flashAt && e < flashAt + 450) ? `translate(${(Math.random() - 0.5) * 16}px, ${(Math.random() - 0.5) * 16}px)` : '';
+        if (e > T * 0.4) rankEl.style.opacity = '1';
+        if (e > T * 0.44) { nameEl.style.opacity = '1'; nameEl.style.transform = `scale(${1 + Math.max(0, 0.3 - (e - T * 0.44) / 1500)})`; }
+        const n = Math.max(0, Math.min(line.length, Math.floor((e - T * 0.5) / 70)));
+        if (lineEl.dataset.n !== String(n)) { lineEl.dataset.n = String(n); lineEl.textContent = line.slice(0, n); }
+        if (e >= T && !st.done) { st.done = true; tapEl.style.opacity = '1'; }
+        st.raf = requestAnimationFrame(frame);
+      };
+      st.raf = requestAnimationFrame(frame);
+    }
+
+    // タップ: 演出中ならスキップ、終了後なら結果画面へ
+    function advanceDestiny() {
+      if (!DESTINY) return;
+      if (!DESTINY.done) { DESTINY.start = performance.now() - DESTINY.T - 1; return; }
+      closeDestiny();
+    }
+    function closeDestiny() {
+      if (!DESTINY) return;
+      cancelAnimationFrame(DESTINY.raf);
+      DESTINY = null;
+      const layer = document.getElementById('destinyLayer');
+      layer.classList.add('hidden');
+      layer.style.transform = '';
     }
 
     function closeCutscene() {
+      if (DESTINY) { advanceDestiny(); return; }
       sfx.playClick();
       document.getElementById('cutsceneOverlay').classList.add('hidden');
       if (autoRollEnabled && document.getElementById('multiRollModal').classList.contains('hidden')) {
