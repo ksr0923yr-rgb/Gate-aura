@@ -1452,7 +1452,7 @@
         }
 
         updateQuestProgress(wonAura);
-        results.push({ aura: wonAura, isNew, converted, gainedAether });
+        results.push({ aura: wonAura, isNew, converted, gainedAether, alreadyOwned });
       }
 
       checkAchievements();
@@ -1492,8 +1492,13 @@
         showMultiRollModal(results, totalAetherConverted);
       }
 
-      if (topRarity.order >= 6 || topRarity.order >= gameState.settings.cutsceneThreshold) {
-        showCutscene(topAura);
+      // 確定演出は「まだ所持していない L/M/S」のときだけ。所持済みなら流さない
+      const destinyResult = results.filter(r => RARITIES[r.aura.rarity].order >= 6 && !r.alreadyOwned)
+        .reduce((p, r) => (!p || RARITIES[r.aura.rarity].order >= RARITIES[p.aura.rarity].order) ? r : p, null);
+      if (destinyResult) {
+        showCutscene(destinyResult.aura);
+      } else if (topRarity.order >= gameState.settings.cutsceneThreshold) {
+        showCutscene(topAura, false, true);
       } else if (topRarity.order >= 4) {
         triggerScreenShake();
       }
@@ -1585,7 +1590,7 @@
       }
     }
 
-    function showCutscene(aura, isReplay = false) {
+    function showCutscene(aura, isReplay = false, noDestiny = false) {
       cutsceneReplayMode = isReplay;
       triggerScreenShake();
       const overlay = document.getElementById('cutsceneOverlay');
@@ -1616,7 +1621,7 @@
       document.getElementById('cutsceneCloseBtn').textContent = isReplay ? 'CLOSE (閉じる)' : 'CONTINUE (続ける)';
 
       overlay.classList.remove('hidden');
-      if (RARITIES[aura.rarity].order >= 6) playDestiny(aura);
+      if (!noDestiny && RARITIES[aura.rarity].order >= 6) playDestiny(aura);
     }
 
     // ===== 演出リプレイ: 発見済みオーラの「引いた時の演出」をいつでも再生 =====
@@ -1713,6 +1718,279 @@
       '永劫の月': '朽ちることのない月が、昇り続ける…',
       '神話の終端': '語り継がれた物語が、いま完結する…'
     };
+    // ===== 名前ごとの専用演出 (S/M/L 全70種) =====
+    const dR = i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+    const dLn = (c, x1, y1, x2, y2, w, a, s) => { c.globalAlpha = Math.max(0, a); c.strokeStyle = s; c.lineWidth = Math.max(0.5, w); c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); };
+    const dCi = (c, x, y, r, a, s, f, lw = 3) => { c.globalAlpha = Math.max(0, a); c.beginPath(); c.arc(x, y, Math.max(0.1, r), 0, 6.2832); if (f) { c.fillStyle = s; c.fill(); } else { c.strokeStyle = s; c.lineWidth = lw; c.stroke(); } };
+    const dOrb = (c, x, y, r, col, a) => { r = Math.max(0.5, r); const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, '#fff'); g.addColorStop(0.3, col); g.addColorStop(1, 'rgba(0,0,0,0)'); c.globalAlpha = Math.max(0, a); c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill(); };
+    const dRect = (c, a) => { c.globalAlpha = a; c.fillStyle = '#fff'; };
+    // scene(c, cx, cy, W, H, R, col, v, k, cv)  k=閃光後の経過秒
+    const SCENES_RAW = {
+      sun: (c, cx, cy, W, H, R, col, v, k) => { // ギラギラ太陽 (v2=昇る朝日)
+        const y = v === 2 ? cy + 140 * Math.max(0, 1 - k / 3) : cy;
+        for (let i = 0; i < 44; i++) { const a = i * 0.1428 + k * (v ? 0.25 : 0.4), l = R * (0.45 + 0.55 * Math.abs(Math.sin(k * 6 + i * 1.9))), w = 0.025 + 0.03 * dR(i); c.globalAlpha = 0.4; c.fillStyle = i % 2 ? col : '#fff4b0'; c.beginPath(); c.moveTo(cx, y); c.lineTo(cx + Math.cos(a - w) * l, y + Math.sin(a - w) * l); c.lineTo(cx + Math.cos(a + w) * l, y + Math.sin(a + w) * l); c.fill(); }
+        dOrb(c, cx, y, 150 + 20 * Math.sin(k * 9), col, 0.9); dOrb(c, cx, y, 70, '#fff', 1);
+        for (let i = 0; i < 24; i++) { const a = dR(i) * 6.28, d = (k * 120 + i * 40) % R; dOrb(c, cx + Math.cos(a) * d, y + Math.sin(a) * d, 6, '#fde68a', 0.8); }
+      },
+      moon: (c, cx, cy, W, H, R, col, v, k) => { // 月 (v1=永劫 v2=夢のシャボン)
+        dOrb(c, cx, cy, 190 + 10 * Math.sin(k * 2), col, 0.55); dOrb(c, cx, cy, 78, '#fff', 1);
+        c.globalCompositeOperation = 'source-over'; c.globalAlpha = 0.92; c.fillStyle = '#05070f'; c.beginPath(); c.arc(cx + 34 + 8 * Math.sin(k), cy - 10, 70, 0, 6.2832); c.fill(); c.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < 30; i++) dOrb(c, dR(i) * W, (dR(i + 50) * H + k * (20 + 30 * dR(i + 9)) * (v === 2 ? -1 : 1) + H * 3) % H, v === 2 ? 14 + 18 * dR(i + 3) : 4, col, 0.5);
+        for (let i = 0; i < 3; i++) { const f = (k * 0.35 + i / 3) % 1; dCi(c, cx, cy, 90 + f * R * 0.6, (1 - f) * 0.5, col, 0, 2); }
+      },
+      fox: (c, cx, cy, W, H, R, col, v, k) => { // 九つの狐火
+        for (let i = 0; i < 9; i++) for (let j = 0; j < 12; j++) { const a = k * 1.3 - j * 0.09 + i * 0.698, rx = 130 + 34 * Math.sin(i + k); dOrb(c, cx + Math.cos(a) * rx * 1.5, cy + Math.sin(a * 1.3) * rx, j ? 16 - j : 34, i % 2 ? '#93c5fd' : col, 0.7 - j * 0.05); }
+        dOrb(c, cx, cy, 60, '#fff', 0.8);
+      },
+      serpent: (c, cx, cy, W, H, R, col, v, k) => { // 八つ首の大蛇
+        for (let i = 0; i < 8; i++) { c.strokeStyle = i % 2 ? col : '#bbf7d0'; c.lineWidth = 9; c.globalAlpha = 0.6; c.beginPath(); let hx = 0, hy = 0;
+          for (let j = 0; j <= 30; j++) { const f = j / 30, a = i * 0.785 + 0.5 * Math.sin(k * 2 + f * 7 + i), x = cx + Math.cos(a) * f * R * 0.8, y = cy + Math.sin(a) * f * R * 0.8; if (j) c.lineTo(x, y); else c.moveTo(x, y); hx = x; hy = y; }
+          c.stroke(); dOrb(c, hx, hy, 26, '#ef4444', 0.9); }
+        dOrb(c, cx, cy, 70, col, 0.8);
+      },
+      tree: (c, cx, cy, W, H, R, col, v, k) => { // 育つ世界樹と舞う葉
+        const g = Math.min(1, k / 2.2), br = (x, y, a, l, d) => { if (d > 6) return; const x2 = x + Math.cos(a) * l * g, y2 = y + Math.sin(a) * l * g; c.globalAlpha = 0.85; c.strokeStyle = d > 4 ? col : '#a16207'; c.lineWidth = 7 - d; c.beginPath(); c.moveTo(x, y); c.lineTo(x2, y2); c.stroke(); br(x2, y2, a - 0.4 + 0.05 * Math.sin(k + d), l * 0.76, d + 1); br(x2, y2, a + 0.4 + 0.05 * Math.cos(k + d), l * 0.76, d + 1); };
+        br(cx, cy + R * 0.35, -1.5708, 95, 0);
+        for (let i = 0; i < 40; i++) dOrb(c, dR(i) * W + Math.sin(k + i) * 30, (dR(i + 7) * H + k * 40) % H, 7, '#86efac', 0.7);
+      },
+      flame: (c, cx, cy, W, H, R, col, v, k) => { // 炎 (v1=不死鳥の翼 v2=黄昏の赤い空)
+        if (v === 2) dOrb(c, cx, cy + 190 - 20 * k, 170, col, 0.7);
+        if (v === 1) for (let s = -1; s <= 1; s += 2) for (let i = 0; i < 9; i++) dOrb(c, cx + s * (40 + i * 22), cy - 10 - i * i * 2.2 + 14 * Math.sin(k * 5 + i), 24, col, 0.6);
+        for (let i = 0; i < 90; i++) { const t = (k * 0.7 + dR(i)) % 1, x = cx + (dR(i + 5) - 0.5) * (v === 2 ? W : 160) + Math.sin(t * 9 + i) * 20, y = v === 2 ? t * H : cy + 120 - t * 330; dOrb(c, x, y, 5 + 14 * (1 - t), i % 3 ? col : '#fde047', 0.8 * (1 - t)); }
+        dOrb(c, cx, cy, 80, '#fff', 0.8);
+      },
+      thunder: (c, cx, cy, W, H, R, col, v, k) => { // 稲妻と太鼓の衝撃
+        const n = Math.floor(k * 4), f = (k * 4) % 1;
+        for (let b = 0; b < 3; b++) { let x = dR(n * 3 + b) * W; c.globalAlpha = 1 - f; c.strokeStyle = b ? col : '#fff'; c.lineWidth = b ? 3 : 5; c.beginPath(); c.moveTo(x, 0); for (let j = 1; j <= 10; j++) { x += (cx - x) * 0.12 + (dR(n * 31 + b * 7 + j) - 0.5) * 70; c.lineTo(x, j * cy / 10 * 1.05); } c.stroke(); }
+        const p = (k * 2) % 1; dCi(c, cx, cy + 60, 30 + p * R * 0.6, 1 - p, col, 0, 4); dOrb(c, cx, cy + 60, 60 + 30 * (1 - p), col, 0.9);
+        if (f < 0.12) { c.globalAlpha = 0.3; c.fillStyle = '#fff'; c.fillRect(0, 0, W, H); }
+      },
+      wave: (c, cx, cy, W, H, R, col, v, k) => { // 波 (v0=海神の三叉 v1=黄金の方舟)
+        for (let l = 0; l < 6; l++) { c.globalAlpha = 0.5; c.strokeStyle = l % 2 ? col : '#e0f2fe'; c.lineWidth = 4; c.beginPath(); for (let x = 0; x <= W; x += 12) { const y = cy + 60 + l * 26 + 16 * Math.sin(x * 0.02 + k * 3 + l); if (x) c.lineTo(x, y); else c.moveTo(x, y); } c.stroke(); }
+        if (v === 1) { const by = cy + 40 + 8 * Math.sin(k * 3); c.globalAlpha = 0.9; c.fillStyle = col; c.beginPath(); c.moveTo(cx - 80, by); c.lineTo(cx + 80, by); c.lineTo(cx + 50, by + 30); c.lineTo(cx - 50, by + 30); c.fill(); c.beginPath(); c.moveTo(cx, by - 100); c.lineTo(cx + 60, by - 8); c.lineTo(cx, by - 8); c.fill(); dOrb(c, cx, cy - 40, 150, col, 0.5); }
+        else for (let i = -1; i <= 1; i++) { const ty = cy - 130 - 40 * Math.min(1, k); dLn(c, cx + i * 36, cy + 50, cx + i * 36, ty, 8, 0.9, col); dOrb(c, cx + i * 36, ty, 22, '#fff', 0.9); }
+        for (let i = 0; i < 30; i++) dOrb(c, dR(i) * W, H - ((k * 90 * (0.5 + dR(i + 4)) + dR(i + 8) * H) % H), 6, '#bae6fd', 0.6);
+      },
+      mist: (c, cx, cy, W, H, R, col, v, k) => { // 冥王の霧と双眸
+        for (let i = 0; i < 14; i++) dOrb(c, (dR(i) * W + k * 25 * (i % 2 ? 1 : -1) + W * 2) % W, cy - 120 + dR(i + 3) * 300 + Math.sin(k + i) * 30, 110 + 60 * dR(i + 9), i % 3 ? col : '#4c1d95', 0.28);
+        const o = Math.min(1, k / 1.2); dOrb(c, cx - 50, cy - 10, 20 * o, '#f0abfc', 1); dOrb(c, cx + 50, cy - 10, 20 * o, '#f0abfc', 1);
+      },
+      veil: (c, cx, cy, W, H, R, col, v, k) => { // 羽衣 / 銀河の織り糸
+        for (let i = 0; i < 7; i++) { c.globalAlpha = 0.55; c.strokeStyle = i % 2 ? col : (v ? '#a5b4fc' : '#fbcfe8'); c.lineWidth = v ? 2 : 14; c.beginPath(); for (let x = 0; x <= W; x += 14) { const y = cy - 120 + i * 40 + 40 * Math.sin(x * 0.012 + k * 1.6 + i * 0.8); if (x) c.lineTo(x, y); else c.moveTo(x, y); } c.stroke(); }
+        for (let i = 0; i < 26; i++) dOrb(c, dR(i) * W + Math.sin(k + i) * 24, (dR(i + 7) * H + k * 40) % H, v ? 5 : 10, '#fff', 0.7);
+      },
+      birth: (c, cx, cy, W, H, R, col, v, k) => { // 星の誕生 / 宇宙の鼓動(v1)
+        const b = v ? Math.pow(Math.max(0, Math.sin(k * 6)), 8) + Math.pow(Math.max(0, Math.sin(k * 6 - 1.2)), 8) : 0;
+        for (let i = 0; i < 70; i++) { const a = dR(i) * 6.28, d = ((k * 0.5 + dR(i + 3)) % 1) * R * 0.9 * (1 + 0.2 * b); dOrb(c, cx + Math.cos(a) * d, cy + Math.sin(a) * d, 7, i % 2 ? col : '#fff', 0.8); }
+        dOrb(c, cx, cy, 70 + (v ? 60 * b : 20 * Math.sin(k * 4)), '#fff', 0.9); dOrb(c, cx, cy, 160 + 60 * b, col, 0.5);
+      },
+      pillar: (c, cx, cy, W, H, R, col, v, k) => { // 光の柱 (v1=天地開闢 v2=裁きの光)
+        const g = Math.min(1, k / 1.5);
+        if (v === 2) for (let i = 0; i < 5; i++) { const x = cx + (i - 2) * 70; c.globalAlpha = 0.4 * g; c.fillStyle = col; c.beginPath(); c.moveTo(x - 6, 0); c.lineTo(x + 6, 0); c.lineTo(x + 40 * (i - 2) + 30, H); c.lineTo(x + 40 * (i - 2) - 30, H); c.fill(); }
+        else if (v === 1) { c.globalAlpha = 0.8; c.fillStyle = col; c.fillRect(0, cy - 3 - 40 * g, W, 6 + 80 * g); dOrb(c, cx, cy, 140, '#fff', 0.7 * g); }
+        else { const w = 20 + 120 * g, gr = c.createLinearGradient(cx - w, 0, cx + w, 0); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.5, col); gr.addColorStop(1, 'rgba(0,0,0,0)'); c.globalAlpha = 0.85; c.fillStyle = gr; c.fillRect(cx - w, 0, 2 * w, H); }
+        for (let i = 0; i < 40; i++) dOrb(c, cx + (dR(i) - 0.5) * W * 0.8, H - ((k * 70 * (0.5 + dR(i + 2)) + dR(i + 5) * H) % H), 5, '#fff', 0.8);
+        dOrb(c, cx, cy, 90, '#fff', 0.9);
+      },
+      clock: (c, cx, cy, W, H, R, col, v, k) => { // 時計 (v0=砂時計 v1=針が止まる v2=逆回転+乱れ)
+        const t = v === 1 ? Math.max(0, 4 - k * 1.2) : v === 2 ? -k : k;
+        dCi(c, cx, cy, 130, 0.9, col, 0, 4);
+        for (let i = 0; i < 12; i++) { const a = i * 0.5236; dLn(c, cx + Math.cos(a) * 112, cy + Math.sin(a) * 112, cx + Math.cos(a) * 128, cy + Math.sin(a) * 128, 4, 0.9, col); }
+        dLn(c, cx, cy, cx + Math.cos(t * 6) * 108, cy + Math.sin(t * 6) * 108, 3, 1, '#fff'); dLn(c, cx, cy, cx + Math.cos(t * 0.5) * 70, cy + Math.sin(t * 0.5) * 70, 7, 1, col);
+        if (v === 0) for (let i = 0; i < 60; i++) dOrb(c, cx + (dR(i) - 0.5) * 24, cy + 150 + ((k * 90 + i * 11) % 200), 4, col, 0.8);
+        if (v === 2) for (let i = 0; i < 6; i++) { c.globalAlpha = 0.5; c.fillStyle = i % 2 ? '#a855f7' : '#fff'; c.fillRect(0, dR(Math.floor(k * 12) + i) * H, W, 3); }
+        if (v === 1 && k > 3.3) dOrb(c, cx, cy, 200 * Math.min(1, k - 3.3), col, 0.5);
+      },
+      threads: (c, cx, cy, W, H, R, col, v, k) => { // 運命の糸 (v1=因果の糸がほどける)
+        for (let i = 0; i < 26; i++) { const a = i * 0.2417, x = cx + Math.cos(a) * R * 0.8, y = cy + Math.sin(a) * R * 0.8, snap = v && k > 1 + dR(i) * 2, ex = snap ? cx + (x - cx) * 0.45 : cx, ey = snap ? cy + (y - cy) * 0.45 : cy;
+          c.globalAlpha = 0.7; c.strokeStyle = col; c.lineWidth = 2; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo((x + cx) / 2 + (snap ? 0 : Math.sin(k * 9 + i) * 10), (y + cy) / 2 + Math.cos(k * 7 + i) * 10, ex, ey); c.stroke(); if (snap) dOrb(c, ex, ey, 8, '#fff', 0.9); }
+        dOrb(c, cx, cy, 55, col, 0.8);
+      },
+      dragon: (c, cx, cy, W, H, R, col, v, k) => { // うねる龍
+        let hx = 0, hy = 0;
+        for (let j = 0; j < 70; j++) { const f = j / 70, x = W * (0.05 + 0.9 * f), y = cy + 90 * Math.sin(f * 9 - k * 2.5); dOrb(c, x, y, 34 * (0.4 + f * 0.6), j % 4 ? col : '#fff', 0.55); hx = x; hy = y; }
+        dOrb(c, hx, hy, 46, v ? '#f59e0b' : '#fff', 1); dOrb(c, hx, hy, 12, '#ef4444', 1);
+        for (let i = 0; i < 12; i++) dOrb(c, (dR(i) * W + k * 30) % W, dR(i + 4) * H, 90, '#334155', 0.2);
+      },
+      ripple: (c, cx, cy, W, H, R, col, v, k) => { // 静かな波紋 (v1=最後の一滴)
+        const t0 = v === 1 ? 0.8 : 0;
+        if (v === 1) dOrb(c, cx, Math.min(cy, k * 260 - 40), 18, col, k < 0.9 ? 1 : 0);
+        if (k > t0) for (let i = 0; i < 6; i++) { const f = ((k - t0) / (v === 1 ? 1.2 : 2.5) + i / 6) % 1; dCi(c, cx, cy, f * R * (v === 1 ? 1.1 : 0.9), (1 - f) * 0.7, col, 0, 3); }
+        for (let i = 0; i < 20; i++) dOrb(c, dR(i) * W, (dR(i + 9) * H + k * 12) % H, 4, '#e2e8f0', 0.3);
+        if (v === 1 && k > 2) dOrb(c, cx, cy, 120 * Math.min(1, k - 2), col, 0.6);
+      },
+      wings: (c, cx, cy, W, H, R, col, v, k) => { // 天使の翼と鐘
+        const g = Math.min(1, k / 1.4);
+        for (let s = -1; s <= 1; s += 2) for (let i = 0; i < 14; i++) { const a = -0.3 - i * 0.09 * g, l = (60 + i * 14) * (0.4 + 0.6 * g); dLn(c, cx + s * 20, cy, cx + s * (20 + Math.cos(a) * l * 2.4), cy + Math.sin(a) * l * 1.4 - 40 * g + Math.sin(k * 3 + i) * 6, 7, 0.6, i % 2 ? col : '#fff'); }
+        const p = (k * 0.8) % 1; dCi(c, cx, cy, p * R * 0.8, 1 - p, '#fef9c3', 0, 3); dOrb(c, cx, cy - 20, 70, '#fff', 0.8);
+        for (let i = 0; i < 30; i++) dOrb(c, dR(i) * W + Math.sin(k + i) * 20, (dR(i + 3) * H + k * 50) % H, 7, '#fff', 0.7);
+      },
+      warp: (c, cx, cy, W, H, R, col, v, k) => { // 星間跳躍
+        for (let i = 0; i < 120; i++) { const a = dR(i) * 6.2832, f = (k * 0.9 + dR(i + 5)) % 1, d = f * f * R * 1.3; dLn(c, cx + Math.cos(a) * d * 0.6, cy + Math.sin(a) * d * 0.6, cx + Math.cos(a) * d, cy + Math.sin(a) * d, 1 + 2 * f, 0.9 * f, i % 3 ? col : '#fff'); }
+        dOrb(c, cx, cy, 80, '#fff', 0.7);
+      },
+      barrier: (c, cx, cy, W, H, R, col, v, k) => { // 守護の六角結界
+        for (let l = 0; l < 4; l++) { c.globalAlpha = 0.8 - l * 0.12; c.strokeStyle = l % 2 ? '#fff' : col; c.lineWidth = 3; c.beginPath(); for (let j = 0; j <= 6; j++) { const a = j * 1.0472 + k * (l % 2 ? 0.6 : -0.6), r = 60 + l * 45; if (j) c.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); else c.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } c.stroke(); }
+        const h = Math.floor(k * 5); dOrb(c, cx + Math.cos(h * 2.4) * 190, cy + Math.sin(h * 2.4) * 190, 40 * (1 - (k * 5) % 1), '#fff', 0.9); dOrb(c, cx, cy, 60, col, 0.9);
+      },
+      rise: (c, cx, cy, W, H, R, col, v, k) => { // 祈りの魔法陣と昇る光
+        dCi(c, cx, cy, 120, 0.9, col, 0, 3); dCi(c, cx, cy, 160, 0.6, '#fff', 0, 2);
+        for (let i = 0; i < 12; i++) { const a = i * 0.5236 + k * 0.7; dOrb(c, cx + Math.cos(a) * 140, cy + Math.sin(a) * 140, 9, '#fff', 0.9); dLn(c, cx + Math.cos(a) * 120, cy + Math.sin(a) * 120, cx + Math.cos(a + 2.6) * 120, cy + Math.sin(a + 2.6) * 120, 1.5, 0.4, col); }
+        for (let i = 0; i < 50; i++) dOrb(c, cx + (dR(i) - 0.5) * 260, cy + 200 - ((k * 100 * (0.4 + dR(i + 3)) + dR(i + 6) * 500) % 520), 5, col, 0.8);
+      },
+      pages: (c, cx, cy, W, H, R, col, v, k) => { // 舞う頁 (v1=流れる記録の文字)
+        if (v === 1) { c.font = '18px monospace'; c.textAlign = 'left'; c.fillStyle = col; for (let i = 0; i < 18; i++) for (let j = 0; j < 14; j++) { c.globalAlpha = 0.25 + 0.6 * dR(i * 14 + j + Math.floor(k * 3)); c.fillText('記録宇宙叡智刻'[(i + j + Math.floor(k * 4)) % 7], i * (W / 18), (j * 60 + k * 90 * (0.5 + dR(i))) % H); } }
+        else for (let i = 0; i < 16; i++) { const a = k * 0.6 + i * 0.4; c.save(); c.translate(cx + Math.cos(a) * (100 + i * 9), cy + Math.sin(a * 1.3) * (120 + i * 6)); c.rotate(a * 2); c.globalAlpha = 0.6; c.fillStyle = col; c.fillRect(-18, -24, 36, 48); c.fillStyle = '#fff'; c.fillRect(-12, -16, 24, 2); c.fillRect(-12, -8, 18, 2); c.restore(); }
+        dOrb(c, cx, cy, 90, col, 0.8);
+      },
+      glitch: (c, cx, cy, W, H, R, col, v, k, cv) => { // バグ・グリッチ (v=表示文字)
+        const d = cv.width / W, n = Math.floor(k * 20), t = v || '404', fs = Math.min(120, W * 1.5 / t.length), j = (dR(n) - 0.5) * 18;
+        c.globalCompositeOperation = 'source-over';
+        for (let i = 0; i < 7; i++) { const y = dR(n + i * 3) * H, h = 8 + dR(n + i) * 60; c.globalAlpha = 1; c.drawImage(cv, 0, y * d, cv.width, h * d, (dR(n * 7 + i) - 0.5) * 120, y, W, h); }
+        c.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < 14; i++) { c.globalAlpha = 0.55; c.fillStyle = ['#22d3ee', '#f43f5e', '#fff', '#22c55e'][i % 4]; c.fillRect(dR(n + i * 5) * W, dR(n + i * 9) * H, 20 + dR(n + i) * 160, 4 + dR(n + i * 2) * 26); }
+        c.font = `bold ${fs}px Orbitron, monospace`; c.textAlign = 'center';
+        c.globalAlpha = 0.9; c.fillStyle = '#f43f5e'; c.fillText(t, cx - 6 + j, cy + 40); c.fillStyle = '#22d3ee'; c.fillText(t, cx + 6 - j, cy + 40);
+        c.globalAlpha = dR(n + 1) > 0.25 ? 1 : 0.2; c.fillStyle = '#fff'; c.fillText(t, cx, cy + 40); c.textAlign = 'left';
+        if (k % 1 < 0.08) { c.globalAlpha = 0.5; c.fillStyle = '#fff'; c.fillRect(0, 0, W, H); }
+      },
+      code: (c, cx, cy, W, H, R, col, v, k) => { // コードの雨 (v1=ため息)
+        c.font = '16px monospace'; c.textAlign = 'left';
+        for (let i = 0; i < 24; i++) { const hy = (k * (v ? 80 : 180) * (0.5 + dR(i)) + dR(i + 9) * H) % (H + 200);
+          for (let j = 0; j < 12; j++) { c.globalAlpha = 1 - j / 12; c.fillStyle = j ? col : '#fff'; c.fillText(String.fromCharCode(0x30A0 + Math.floor(dR(i * 12 + j + Math.floor(k * 6)) * 60)), i * (W / 24), hy - j * 18); } }
+        if (v) { c.font = 'bold 70px sans-serif'; c.textAlign = 'center'; c.globalAlpha = 0.85; c.fillStyle = '#fff'; c.fillText('…', cx, cy + 20); c.textAlign = 'left'; }
+        else dOrb(c, cx, cy, 70, col, 0.6);
+      },
+      eye: (c, cx, cy, W, H, R, col, v, k) => { // 巨大な瞳 (v1=観測不能でちらつく v2=全知)
+        const bl = (k * 0.7) % 1 > 0.93 ? 0.1 : 1, ew = 190, eh = 85 * bl * Math.min(1, k / 0.8), px = cx + Math.sin(k * 1.1) * 46, py = cy + Math.cos(k * 0.8) * 10;
+        c.globalAlpha = (v === 1 && dR(Math.floor(k * 14)) > 0.6) ? 0.15 : 1; c.strokeStyle = col; c.lineWidth = 5; c.beginPath(); c.moveTo(cx - ew, cy); c.quadraticCurveTo(cx, cy - eh * 2, cx + ew, cy); c.quadraticCurveTo(cx, cy + eh * 2, cx - ew, cy); c.stroke();
+        dOrb(c, px, py, 62 * bl, col, 0.9); dCi(c, px, py, 20 * bl, 1, '#fff', 1);
+        for (let i = 0; i < 24; i++) { const a = i * 0.2618 + k * 0.2, w = Math.sin(k * 4 + i); dLn(c, cx + Math.cos(a) * 230, cy + Math.sin(a) * 140, cx + Math.cos(a) * (260 + 30 * w), cy + Math.sin(a) * (170 + 20 * w), 2, 0.5, col); }
+      },
+      well: (c, cx, cy, W, H, R, col, v, k) => { // 湧き出る光 (v0=名もなき光) / ？の霧 (v1)
+        for (let i = 0; i < 28; i++) { const t = (k * 0.5 + dR(i)) % 1, x0 = dR(i + 2) * W, y0 = dR(i + 7) * H;
+          if (v) { c.font = `bold ${40 + 50 * dR(i)}px Orbitron, sans-serif`; c.textAlign = 'center'; c.globalAlpha = Math.sin(t * 3.14) * 0.7; c.fillStyle = col; c.fillText('?', x0, y0 - t * 60); }
+          else dOrb(c, x0 + (cx - x0) * t * 0.5, y0 + (cy - y0) * t * 0.5, 40 * Math.sin(t * 3.14) + 4, col, 0.8); }
+        c.textAlign = 'left'; dOrb(c, cx, cy, v ? 60 : 100 + 20 * Math.sin(k * 3), v ? '#fff' : col, 0.8);
+      },
+      odds: (c, cx, cy, W, H, R, col, v, k) => { // 0.0000000000001% が打ち込まれ、最後の1が灯る
+        const s = '0.0000000000001%', n = Math.min(s.length, Math.floor(k * 9));
+        c.font = `bold ${Math.min(46, W / 9)}px Orbitron, monospace`; c.textAlign = 'center'; c.globalAlpha = 0.95; c.fillStyle = '#fff'; c.fillText(s.slice(0, n), cx, cy);
+        if (n >= s.length) { dOrb(c, cx, cy, 120 * (0.7 + 0.3 * Math.sin(k * 20)), col, 0.9); c.fillStyle = col; c.globalAlpha = 1; c.fillText(s, cx, cy); }
+        c.textAlign = 'left'; for (let i = 0; i < 40; i++) dOrb(c, dR(i) * W, (dR(i + 3) * H + k * 30) % H, 3, '#fff', 0.35);
+      },
+      inf: (c, cx, cy, W, H, R, col, v, k) => { // ∞ (v2=広がる向こう側 v3=二重の∞)
+        const zoom = v === 2 ? 1 + k * 0.35 : 1;
+        for (let m = 0; m < (v === 3 ? 2 : 1); m++) for (let j = 0; j < 90; j++) { const t = k * 1.6 - j * 0.045 + m * 3.14, s = Math.sin(t), d = 1 + s * s, z = 150 * zoom * (m ? 1.5 : 1); dOrb(c, cx + z * Math.cos(t) / d, cy + z * s * Math.cos(t) / d, 16 - j * 0.15, m ? '#fff' : col, 1 - j / 90); }
+        if (v === 2) dOrb(c, cx, cy, 20 + 60 * Math.max(0, Math.sin(k)), '#fff', 0.8);
+      },
+      omega: (c, cx, cy, W, H, R, col, v, k) => { // 巨大なΩ
+        dOrb(c, cx, cy, 220, col, 0.45 + 0.15 * Math.sin(k * 3));
+        c.font = 'bold 260px serif'; c.textAlign = 'center'; c.globalAlpha = 0.95; c.fillStyle = '#fff'; c.save(); c.translate(cx, cy + 60); c.rotate(Math.sin(k) * 0.08); c.scale(1 + 0.04 * Math.sin(k * 4), 1); c.fillText('Ω', 0, 0); c.restore(); c.textAlign = 'left';
+        for (let i = 0; i < 3; i++) { const f = (k * 0.5 + i / 3) % 1; dCi(c, cx, cy, f * R, 1 - f, col, 0, 3); }
+      },
+      dice: (c, cx, cy, W, H, R, col, v, k) => { // 最後のダイス
+        const done = k > 2.2, face = done ? 6 : 1 + Math.floor(dR(Math.floor(k * 12)) * 6), s = done ? 120 : 120 * (0.7 + 0.3 * Math.abs(Math.cos(k * 6))), y = cy - (done ? 0 : 90 * Math.abs(Math.sin(k * 4)) * (1 - k / 2.2));
+        const P = [0, [[0, 0]], [[-1, -1], [1, 1]], [[-1, -1], [0, 0], [1, 1]], [[-1, -1], [1, -1], [-1, 1], [1, 1]], [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]], [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]]];
+        c.save(); c.translate(cx, y); c.rotate(done ? 0 : k * 5); c.globalAlpha = 1; c.strokeStyle = col; c.lineWidth = 6; c.strokeRect(-s / 2, -s / 2, s, s);
+        P[face].forEach(([a, b]) => dCi(c, a * s * 0.27, b * s * 0.27, s * 0.08, 1, '#fff', 1)); c.restore();
+        if (done) { dOrb(c, cx, cy, 160 + 30 * Math.sin(k * 8), col, 0.6); for (let i = 0; i < 40; i++) { const a = dR(i) * 6.28, d = (k - 2.2) * 200 * (0.5 + dR(i + 3)); dOrb(c, cx + Math.cos(a) * d, cy + Math.sin(a) * d, 6, '#fff', 0.8); } }
+      },
+      ice: (c, cx, cy, W, H, R, col, v, k) => { // 凍てつく結晶と雪
+        const g = Math.min(1, k / 2);
+        for (let i = 0; i < 6; i++) { const a = i * 1.0472; for (let j = 1; j <= 4; j++) { const x = cx + Math.cos(a) * j * 38 * g, y = cy + Math.sin(a) * j * 38 * g; dLn(c, cx, cy, x, y, 4, 0.9, '#fff'); dLn(c, x, y, x + Math.cos(a + 1) * 22 * g, y + Math.sin(a + 1) * 22 * g, 3, 0.8, col); dLn(c, x, y, x + Math.cos(a - 1) * 22 * g, y + Math.sin(a - 1) * 22 * g, 3, 0.8, col); } }
+        for (let i = 0; i < 60; i++) dOrb(c, dR(i) * W + Math.sin(k + i) * 20, (dR(i + 4) * H + k * 70 * (0.5 + dR(i))) % H, 5, '#e0f2fe', 0.8);
+        for (let i = 0; i < 4; i++) dOrb(c, i % 2 ? 0 : W, i < 2 ? 0 : H, 160 * g, col, 0.6);
+      },
+      source: (c, cx, cy, W, H, R, col, v, k) => { // 万象が生まれ出る虹の奔流
+        for (let i = 0; i < 80; i++) { const a = dR(i) * 6.28, f = (k * 0.6 + dR(i + 3)) % 1, d = f * R * 0.9; dOrb(c, cx + Math.cos(a + f * 2) * d, cy + Math.sin(a + f * 2) * d, 14 * (1 - f) + 3, `hsl(${(i * 37 + k * 90) % 360},100%,65%)`, 0.8); }
+        dOrb(c, cx, cy, 60 + 20 * Math.sin(k * 5), '#fff', 1);
+      },
+      hole: (c, cx, cy, W, H, R, col, v, k) => { // 特異点 (v1=すべてが「無」に呑まれる)
+        for (let i = 0; i < 120; i++) { const t = (k * 0.5 + dR(i)) % 1, a = dR(i + 3) * 6.28 + t * 9, d = R * 0.9 * (1 - t); dOrb(c, cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.45, 5 * (1 - t) + 1, i % 3 ? col : '#fff', 0.9 * t + 0.1); }
+        for (let i = 0; i < 3; i++) { c.save(); c.translate(cx, cy); c.rotate(k * 0.3 + i); c.scale(1, 0.4); dCi(c, 0, 0, 100 + i * 30, 0.7 - i * 0.2, col, 0, 5); c.restore(); }
+        c.globalCompositeOperation = 'source-over'; c.fillStyle = '#000';
+        if (v === 1) { c.globalAlpha = Math.min(0.9, k / 4); c.fillRect(0, 0, W, H); } else { c.globalAlpha = 1; c.beginPath(); c.arc(cx, cy, 52, 0, 6.2832); c.fill(); }
+        c.globalCompositeOperation = 'lighter'; if (!v) dCi(c, cx, cy, 54, 1, '#fff', 0, 3);
+      },
+      crack: (c, cx, cy, W, H, R, col, v, k) => { // 因果が砕け散るひび割れ
+        const g = Math.min(1, k / 0.8);
+        for (let i = 0; i < 14; i++) { let x = cx, y = cy, a = i * 0.4488 + dR(i) * 0.3; c.globalAlpha = 0.95; c.strokeStyle = i % 3 ? '#fff' : col; c.lineWidth = 3; c.beginPath(); c.moveTo(x, y); for (let j = 1; j <= 8 * g; j++) { a += (dR(i * 9 + j) - 0.5) * 0.9; x += Math.cos(a) * 42; y += Math.sin(a) * 42; c.lineTo(x, y); } c.stroke(); }
+        for (let i = 0; i < 40; i++) { const a = dR(i) * 6.28, d = k * 160 * (0.3 + dR(i + 3)); c.save(); c.translate(cx + Math.cos(a) * d, cy + Math.sin(a) * d); c.rotate(k * 4 * dR(i)); c.globalAlpha = 0.8; c.fillStyle = col; c.fillRect(-6, -3, 12 + 10 * dR(i + 5), 6); c.restore(); }
+        dOrb(c, cx, cy, 70, '#fff', 0.8); if (k % 0.8 < 0.06) { c.globalAlpha = 0.3; c.fillStyle = '#fff'; c.fillRect(0, 0, W, H); }
+      },
+      rift: (c, cx, cy, W, H, R, col, v, k) => { // 次元の裂け目
+        const w = 20 + 130 * Math.min(1, k / 1.2), n = Math.floor(k * 10);
+        c.save(); c.beginPath(); c.moveTo(cx, 0); for (let y = 0; y <= H; y += 30) c.lineTo(cx + w * 0.5 + (dR(y + n) - 0.5) * 16, y); for (let y = H; y >= 0; y -= 30) c.lineTo(cx - w * 0.5 + (dR(y + 99) - 0.5) * 16, y); c.closePath(); c.clip();
+        const gr = c.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#312e81'); gr.addColorStop(1, col); c.globalAlpha = 0.9; c.fillStyle = gr; c.fillRect(0, 0, W, H);
+        for (let i = 0; i < 40; i++) dOrb(c, cx + (dR(i) - 0.5) * w, (dR(i + 3) * H + k * 60) % H, 4, '#fff', 0.9);
+        c.restore(); dLn(c, cx - w * 0.5, 0, cx - w * 0.5, H, 4, 0.9, '#fff'); dLn(c, cx + w * 0.5, 0, cx + w * 0.5, H, 4, 0.9, '#fff');
+      },
+      crown: (c, cx, cy, W, H, R, col, v, k) => { // 描かれていく虚無の王冠
+        const g = Math.min(1, k / 2), pts = [[-90, 60], [-90, -20], [-45, 20], [0, -60], [45, 20], [90, -20], [90, 60], [-90, 60]], n = g * (pts.length - 1), i0 = Math.floor(n);
+        c.strokeStyle = col; c.lineWidth = 6; c.globalAlpha = 0.95; c.beginPath(); c.moveTo(cx + pts[0][0], cy + pts[0][1]);
+        for (let i = 1; i <= i0; i++) c.lineTo(cx + pts[i][0], cy + pts[i][1]);
+        if (i0 < pts.length - 1) { const f = n - i0, p = pts[i0], q = pts[i0 + 1]; c.lineTo(cx + p[0] + (q[0] - p[0]) * f, cy + p[1] + (q[1] - p[1]) * f); } c.stroke();
+        [[-90, -20], [0, -60], [90, -20]].forEach(([x, y]) => dOrb(c, cx + x, cy + y, 16 + 5 * Math.sin(k * 4), '#fff', g));
+        for (let i = 0; i < 30; i++) { const a = dR(i) * 6.28 + k * 0.5, d = 150 + ((k * 40 + dR(i + 3) * 80) % 100); dOrb(c, cx + Math.cos(a) * d, cy + Math.sin(a) * d, 4, col, 0.5); }
+      },
+      cliff: (c, cx, cy, W, H, R, col, v, k) => { // 世界の果て: 地平の先は何もない
+        const hy = cy + 20;
+        for (let i = -8; i <= 8; i++) dLn(c, cx + i * 14, hy, cx + i * 70, H, 2, 0.5, col);
+        for (let i = 0; i < 8; i++) { const f = (k * 0.5 + i / 8) % 1, y = hy + f * f * (H - hy); dLn(c, 0, y, W, y, 2, 0.5, col); }
+        c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1; c.fillStyle = '#05070f'; c.fillRect(0, hy - 220, W, 220); c.globalCompositeOperation = 'lighter';
+        dLn(c, 0, hy, W, hy, 3, 1, '#fff');
+        for (let i = 0; i < 30; i++) dOrb(c, cx + (dR(i) - 0.5) * 300, hy - ((k * 60 * (0.5 + dR(i + 2)) + dR(i + 5) * 300) % 300), 4, col, 0.6);
+      },
+      graves: (c, cx, cy, W, H, R, col, v, k) => { // 星が消え、墓標の十字になる
+        for (let i = 0; i < 36; i++) { const x = dR(i) * W, y = dR(i + 5) * H * 0.8, t = Math.min(1, (k - dR(i + 9) * 2.5)); if (t <= 0) continue; const s = 8 + 8 * dR(i + 2);
+          dOrb(c, x, y, s * 2 * (1 - 0.6 * t), col, 0.9 * (1 - 0.7 * t)); dLn(c, x, y - s * 1.6 * t, x, y + s * 1.6 * t, 2, t, '#fff'); dLn(c, x - s * 0.9 * t, y - s * 0.4 * t, x + s * 0.9 * t, y - s * 0.4 * t, 2, t, '#fff'); }
+        dOrb(c, cx, cy, 50, col, 0.6);
+      },
+      tunnel: (c, cx, cy, W, H, R, col, v, k) => { // 終わらない回廊 (v1=螺旋)
+        for (let i = 0; i < 12; i++) { const f = (k * 0.5 + i / 12) % 1, s = Math.pow(f, 2.2) * R * 1.6 + 6;
+          if (v) { const a = f * 12 + k; dOrb(c, cx + Math.cos(a) * s, cy + Math.sin(a) * s * 0.6, 6 + 24 * f, i % 2 ? col : '#fff', 0.8); for (let j = 1; j < 5; j++) dOrb(c, cx + Math.cos(a - j * 0.25) * s, cy + Math.sin(a - j * 0.25) * s * 0.6, 5 * f + 1, col, 0.4); }
+          else { c.globalAlpha = 0.2 + 0.8 * f; c.strokeStyle = i % 2 ? col : '#fff'; c.lineWidth = 2 + 4 * f; c.strokeRect(cx - s * 0.6, cy - s * 0.9, s * 1.2, s * 1.8); } }
+        dOrb(c, cx, cy, 50, '#fff', 0.8);
+      },
+      blade: (c, cx, cy, W, H, R, col, v, k) => { // 神をも断つ斬撃
+        const kk = k % 3.2, L = R * 1.4;
+        for (let i = 0; i < 4; i++) { const u = kk - i * 0.35, t = Math.min(1, u / 0.18), a = -0.6 + i * 0.5; if (u <= 0) continue; const x1 = cx - Math.cos(a) * L, y1 = cy - Math.sin(a) * L, x2 = x1 + Math.cos(a) * L * 2 * t, y2 = y1 + Math.sin(a) * L * 2 * t, fade = 1 - u * 0.9; dLn(c, x1, y1, x2, y2, 9, fade, '#fff'); dLn(c, x1, y1, x2, y2, 26, fade * 0.4, col); }
+        for (let i = 0; i < 50; i++) { const a = dR(i) * 6.28, d = kk * 220 * (0.3 + dR(i + 4)); dOrb(c, cx + Math.cos(a) * d, cy + Math.sin(a) * d, 4, '#fff', 1 - kk / 3.2); }
+        dOrb(c, cx, cy, 70 + 40 * Math.max(0, 1 - kk), col, 0.9);
+      },
+      egg: (c, cx, cy, W, H, R, col, v, k) => { // 宇宙卵: 内側の星々とひび
+        const p = 1 + 0.05 * Math.sin(k * 5), g = Math.min(1, k / 3);
+        c.save(); c.translate(cx, cy); c.scale(p * 0.85, p); c.beginPath(); c.ellipse(0, 0, 90, 120, 0, 0, 6.2832); c.lineWidth = 6; c.strokeStyle = col; c.globalAlpha = 0.95; c.stroke(); c.clip();
+        for (let i = 0; i < 70; i++) dOrb(c, (dR(i) - 0.5) * 180, (dR(i + 3) - 0.5) * 240, 3 + 5 * dR(i + 6), '#fff', 0.9);
+        dOrb(c, 0, 0, 120, col, 0.7); c.restore();
+        for (let i = 0; i < 7; i++) { let x = cx, y = cy - 30, a = i * 0.9 + 0.3; c.globalAlpha = g; c.strokeStyle = '#fff'; c.lineWidth = 3; c.beginPath(); c.moveTo(x, y); for (let j = 1; j <= 5 * g; j++) { a += (dR(i * 7 + j) - 0.5) * 1.2; x += Math.cos(a) * 26; y += Math.sin(a) * 26; c.lineTo(x, y); } c.stroke(); }
+        dOrb(c, cx, cy, 200, col, 0.3 * g);
+      }
+    };
+    const SCENES = SCENES_RAW;
+    // 名前 → [シーン, 色, バリエーション]
+    const DESTINY_SCENE = {
+      '？？？': ['well', '#a78bfa', 1], '名もなき光': ['well', '#fde68a', 0], '404 NOT FOUND': ['glitch', '#22d3ee', '404'], '開発者の秘密': ['code', '#4ade80', 0],
+      '観測者': ['eye', '#a78bfa', 0], '0.0000000000001%の奇跡': ['odds', '#facc15', 0], '最後の一滴': ['ripple', '#7dd3fc', 1], 'Aura∞': ['inf', '#22d3ee', 1],
+      'Null∞': ['glitch', '#94a3b8', 'NULL'], 'ERROR_AURA': ['glitch', '#f43f5e', 'ERROR'], 'Ω': ['omega', '#fbbf24', 0], '観測不能': ['eye', '#94a3b8', 1],
+      '開発者のため息': ['code', '#fb923c', 1], '∞の向こう側': ['inf', '#e879f9', 2], 'Aura∞∞': ['inf', '#34d399', 3], 'THE LAST ROLL': ['dice', '#f472b6', 0],
+      '無限回廊': ['tunnel', '#a78bfa', 0], '絶対零度の王': ['ice', '#7dd3fc', 0], 'アカシックレコード': ['pages', '#60a5fa', 1], '神々の黄昏': ['flame', '#ef4444', 2],
+      '万象の源': ['source', '#ffffff', 0], '零の特異点': ['hole', '#c084fc', 0], '因果律の破壊者': ['crack', '#f87171', 0], '次元の彼方': ['rift', '#38bdf8', 0],
+      '虚無の王冠': ['crown', '#a78bfa', 0], '終末の詩': ['pages', '#fbbf24', 0], '天地開闢': ['pillar', '#fde047', 1], '全知の瞳': ['eye', '#fbbf24', 2],
+      '世界の果て': ['cliff', '#94a3b8', 0], '因果の外側': ['threads', '#f43f5e', 1], '星々の墓標': ['graves', '#cbd5e1', 0], '無限の螺旋': ['tunnel', '#34d399', 1],
+      '原初の沈黙': ['ripple', '#e2e8f0', 0], '時の終着': ['clock', '#fbbf24', 1], '神殺しの刃': ['blade', '#e5e7eb', 0], '夢の最果て': ['moon', '#f0abfc', 2],
+      '宇宙卵': ['egg', '#a78bfa', 0], '絶対なる無': ['hole', '#e2e8f0', 1],
+      '太陽神の冠': ['sun', '#fbbf24', 0], '月読の微笑': ['moon', '#e0e7ff', 0], '天照': ['sun', '#fb923c', 1], '九尾の狐火': ['fox', '#60a5fa', 0],
+      '八岐の大蛇': ['serpent', '#4ade80', 0], '世界樹の息吹': ['tree', '#4ade80', 0], '不死鳥の再誕': ['flame', '#fb923c', 1], '雷神の太鼓': ['thunder', '#fde047', 0],
+      '海神の三叉': ['wave', '#38bdf8', 0], '冥王の吐息': ['mist', '#a855f7', 0], '天女の羽衣': ['veil', '#f9a8d4', 0], '星の誕生': ['birth', '#fde68a', 0],
+      '創世の光': ['pillar', '#fef9c3', 0], '終焉の炎': ['flame', '#dc2626', 0], '時の砂時計': ['clock', '#fcd34d', 0], '運命の糸': ['threads', '#fb7185', 0],
+      '龍神の祝福': ['dragon', '#34d399', 0], '神域の静寂': ['ripple', '#c7d2fe', 0], '宇宙の鼓動': ['birth', '#818cf8', 1], '永遠の黎明': ['sun', '#fdba74', 2],
+      '創世の竜王': ['dragon', '#f59e0b', 1], '終焉の天使': ['wings', '#e0f2fe', 0], '時喰いの魔神': ['clock', '#a855f7', 2], '星間の旅人': ['warp', '#93c5fd', 0],
+      '絶対の守護者': ['barrier', '#fbbf24', 0], '黄金の方舟': ['wave', '#fbbf24', 1], '虚空の巫女': ['rise', '#c4b5fd', 0], '天空の裁定者': ['pillar', '#fef08a', 2],
+      '銀河の織り手': ['veil', '#818cf8', 1], '始原の炎': ['flame', '#f97316', 0], '永劫の月': ['moon', '#fef3c7', 1], '神話の終端': ['pages', '#f5d0fe', 0]
+    };
+
     let DESTINY = null;
 
     function playDestiny(aura) {
@@ -1722,7 +2000,7 @@
       const layer = document.getElementById('destinyLayer'), cv = document.getElementById('destinyCanvas');
       const rankEl = document.getElementById('destinyRank'), nameEl = document.getElementById('destinyName');
       const lineEl = document.getElementById('destinyLine'), tapEl = document.getElementById('destinyTap');
-      const line = DESTINY_LINES[aura.name] || th.fallback, col = th.color, T = th.dur;
+      const line = DESTINY_LINES[aura.name] || th.fallback, col = (DESTINY_SCENE[aura.name] || [])[1] || th.color, T = th.dur;
       const isS = aura.rarity === 'S', isM = aura.rarity === 'M';
       const dpr = Math.min(window.devicePixelRatio || 1, 2), W = window.innerWidth, H = window.innerHeight;
       cv.width = Math.floor(W * dpr); cv.height = Math.floor(H * dpr);
@@ -1736,6 +2014,7 @@
       layer.style.transform = ''; layer.classList.remove('hidden');
       const parts = Array.from({ length: 110 }, () => ({ a: Math.random() * 6.2832, r: 0.3 + Math.random() * 0.8, w: 0.6 + Math.random() * 0.9 }));
       const cx = W / 2, cy = H * 0.34, maxR = Math.hypot(W, H) * 0.55;
+      const sc = DESTINY_SCENE[aura.name] || [], SCN = SCENES[sc[0]];
       const st = { T, done: false, raf: 0, start: performance.now() };
       DESTINY = st;
       const glow = (rad, a) => {
@@ -1763,7 +2042,7 @@
           // 後半: 閃光のあと、衝撃波 + ランク別モーション
           const k = (e - T * 0.4) / 1000;
           for (let i = 0; i < 4; i++) { const f = (k * 0.8 + i * 0.25) % 1; c.globalAlpha = (1 - f) * 0.75; c.strokeStyle = col; c.lineWidth = 2 + 7 * (1 - f); c.beginPath(); c.arc(cx, cy, f * maxR * 0.8, 0, 6.2832); c.stroke(); }
-          if (!isS && !isM) {
+          if (SCN) { SCN(c, cx, cy, W, H, maxR, col, sc[2], k, cv); } else if (!isS && !isM) {
             for (let i = 0; i < 16; i++) { const a = i * 0.3927 + k * 0.45, len = maxR * (0.7 + 0.3 * Math.sin(k * 3 + i)); c.globalAlpha = 0.3; c.fillStyle = col; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(a - 0.05) * len, cy + Math.sin(a - 0.05) * len); c.lineTo(cx + Math.cos(a + 0.05) * len, cy + Math.sin(a + 0.05) * len); c.closePath(); c.fill(); }
           } else if (isM) {
             for (let arm = 0; arm < 3; arm++) { c.globalAlpha = 0.55; c.strokeStyle = col; c.lineWidth = 2.5; c.beginPath(); for (let j = 0; j <= 60; j++) { const f = j / 60, a = arm * 2.094 + f * 6 - k * 1.4, r = f * maxR * 0.75; if (j) c.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); else c.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } c.stroke(); }
