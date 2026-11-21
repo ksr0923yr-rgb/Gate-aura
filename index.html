@@ -1,0 +1,3306 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>AURA GENESIS // RNG - 全400種オーラガチャ＆コレクション</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Noto+Sans+JP:wght@400;500;700;900&family=Orbitron:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      min-height: 100vh;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 44%, #101733 0%, #080c1c 56%, #05070f 100%);
+      color: #f8fafc;
+      font-family: 'Noto Sans JP', sans-serif;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    /* Layer 1: Full-Screen 60FPS Aura Visual Engine Canvas */
+    #aura-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      pointer-events: none;
+      display: block;
+    }
+
+    /* Layer 2: Transparent Foreground UI Shell */
+    #app {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      pointer-events: none;
+    }
+
+    .font-display {
+      font-family: 'Orbitron', 'Noto Sans JP', sans-serif;
+    }
+    .font-mono-num {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.35);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.35);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(148, 163, 184, 0.65);
+    }
+
+    /* Semi-transparent Glassmorphism */
+    .glass-panel {
+      background: rgba(10, 14, 28, 0.58);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+    }
+    .glass-drawer {
+      background: rgba(9, 13, 26, 0.84);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.78);
+    }
+    .glass-card {
+      background: rgba(16, 22, 42, 0.62);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: transform 0.16s ease, border-color 0.16s ease;
+    }
+    .glass-card:hover {
+      border-color: rgba(255, 255, 255, 0.26);
+      transform: translateY(-2px);
+    }
+
+    /* Primary Roll Button */
+    .roll-btn {
+      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
+      background-size: 200% 200%;
+      animation: gradientShift 4s ease infinite;
+      box-shadow: 0 0 25px rgba(139, 92, 246, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.45);
+      transition: transform 0.12s ease, box-shadow 0.2s ease;
+    }
+    .roll-btn:hover:not(:disabled) {
+      transform: scale(1.03);
+      box-shadow: 0 0 38px rgba(168, 85, 247, 0.75), inset 0 1px 2px rgba(255, 255, 255, 0.65);
+    }
+    .roll-btn:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+    .roll-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .multi-roll-btn {
+      background: linear-gradient(135deg, #f59e0b 0%, #ef4444 55%, #db2777 100%);
+      background-size: 200% 200%;
+      animation: gradientShift 4s ease infinite;
+      box-shadow: 0 0 22px rgba(245, 158, 11, 0.42), inset 0 1px 1px rgba(255, 255, 255, 0.45);
+      transition: transform 0.12s ease, box-shadow 0.2s ease;
+    }
+    .multi-roll-btn:hover:not(:disabled) {
+      transform: scale(1.03);
+      box-shadow: 0 0 34px rgba(245, 158, 11, 0.7);
+    }
+    .multi-roll-btn:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+    .multi-roll-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    @keyframes spinSlow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @keyframes spinReverse {
+      from { transform: rotate(360deg); }
+      to { transform: rotate(0deg); }
+    }
+    @keyframes pulseScale {
+      0%, 100% { transform: scale(1); opacity: 0.92; }
+      50% { transform: scale(1.12); opacity: 1; }
+    }
+    @keyframes glitchText {
+      0% { text-shadow: 2px 0 #ff0055, -2px 0 #00ffff; transform: translate(0); }
+      25% { text-shadow: -3px 1px #ff0055, 3px -1px #00ffff; transform: translate(-2px, 1px); }
+      50% { text-shadow: 2px -2px #ff0055, -2px 2px #00ffff; transform: translate(2px, -1px); }
+      75% { text-shadow: -2px 0 #ff0055, 2px 0 #00ffff; transform: translate(0); }
+      100% { text-shadow: 2px 0 #ff0055, -2px 0 #00ffff; transform: translate(0); }
+    }
+    .animate-glitch {
+      animation: glitchText 0.35s infinite;
+    }
+    .animate-spin-slow {
+      animation: spinSlow 14s linear infinite;
+    }
+    .animate-spin-reverse {
+      animation: spinReverse 10s linear infinite;
+    }
+    .animate-pulse-scale {
+      animation: pulseScale 2.4s ease-in-out infinite;
+    }
+
+    @keyframes screenShake {
+      0%, 100% { transform: translate(0, 0); }
+      12% { transform: translate(-7px, -5px); }
+      24% { transform: translate(7px, 5px); }
+      36% { transform: translate(-5px, 6px); }
+      48% { transform: translate(5px, -4px); }
+      60% { transform: translate(-3px, 3px); }
+      75% { transform: translate(3px, -2px); }
+    }
+    .shake-active {
+      animation: screenShake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+    }
+
+    /* ---- 視認性アップ ---- */
+    .glass-panel { background: rgba(8, 12, 26, 0.80) !important; }
+    .glass-card { background: rgba(14, 20, 40, 0.82) !important; }
+    .glass-drawer { background: rgba(8, 11, 22, 0.94) !important; }
+    .text-xs { font-size: 0.78rem !important; line-height: 1.15rem !important; }
+    #app, #drawerBody, #multiRollModal, #cutsceneOverlay, #toastContainer { text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
+    #app { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+    .text-rainbow { text-shadow: none !important; }
+    #equippedBanner { text-shadow: 0 0 8px rgba(0,0,0,0.95), 0 1px 3px #000; }
+    #equippedBanner .bg-white\/10 { background: rgba(8, 12, 26, 0.6); }
+    body.top-collapsed #hdrLeft, body.top-collapsed #activePotionsBar, body.top-collapsed #stageTagRow { display: none !important; }
+    body.bottom-collapsed #quickPotionWrap, body.bottom-collapsed #bottomNav { display: none !important; }
+    .text-rainbow {
+      background: linear-gradient(90deg, #ff3b3b, #ffbe0b, #00f5d4, #3b82f6, #c084fc, #ff3b3b);
+      background-size: 300% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: gradientShift 3s linear infinite;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Layer 1: Full-Screen 60FPS Aura Visual Engine Canvas -->
+  <canvas id="aura-canvas"></canvas>
+
+  <!-- Screen Flash Overlay on Pull -->
+  <div id="pullFlashOverlay" class="fixed inset-0 pointer-events-none opacity-0 transition-opacity duration-300" style="z-index: 3;"></div>
+
+  <!-- Layer 2: Transparent Main UI Shell -->
+  <div id="app" class="flex flex-col justify-between pointer-events-none">
+
+    <!-- Top Header HUD -->
+    <header class="w-full px-3 pt-3 sm:px-6 sm:pt-4 flex flex-wrap items-start justify-between gap-2 pointer-events-auto">
+      <!-- Left: Brand & Probability Fluctuation Event -->
+      <div id="hdrLeft" class="flex flex-col gap-2 max-w-full">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
+            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3z" />
+            </svg>
+          </div>
+          <div>
+            <h1 class="font-display font-black text-base sm:text-xl tracking-wider text-white drop-shadow">
+              AURA GENESIS <span class="text-purple-300 text-xs sm:text-sm font-bold">// 400</span>
+            </h1>
+            <p class="text-[11px] sm:text-xs text-slate-100">
+              総ロール: <span id="hudTotalRolls" class="font-mono-num text-white font-bold">0</span>回 | 図鑑: <span id="hudDexCount" class="font-mono-num text-purple-300 font-bold">1/400</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Probability Fluctuation Banner -->
+        <div id="weatherCard" class="glass-panel rounded-xl px-3 py-2 flex items-center gap-2.5 border-l-4 border-sky-400">
+          <div id="weatherIcon" class="text-xl sm:text-2xl">🌌</div>
+          <div class="flex-1 min-w-[135px]">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] uppercase tracking-wider text-slate-100 font-bold">確率変動イベント</span>
+              <span id="weatherTimer" class="font-mono-num text-[12px] text-sky-300 font-semibold">45s</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="weatherName" class="text-xs sm:text-sm font-bold text-white">平穏な星屑 (Normal)</span>
+              <span id="weatherMultBadge" class="font-mono-num text-[12px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold">×1.0</span>
+            </div>
+            <div class="w-full h-1 bg-slate-800/80 rounded-full mt-1 overflow-hidden">
+              <div id="weatherProgress" class="h-full bg-sky-400 transition-all duration-300" style="width: 100%"></div>
+            </div>
+          </div>
+          <button onclick="triggerManualWeather()" class="px-2 py-1.5 rounded-lg bg-purple-500/25 hover:bg-purple-500/40 border border-purple-400/40 text-[11px] font-bold text-purple-200 leading-tight text-center cursor-pointer" title="エーテル1,200💠または次元干渉装置で確率変動を起こす">
+            📡 干渉<br><span class="font-mono-num text-[10px] text-cyan-300">1200💠</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Right: Aether Currency & Live Luck Multiplier -->
+      <div class="flex flex-col items-end gap-2 ml-auto">
+        <div class="flex items-center gap-2">
+          <button id="toggleTopBtn" onclick="toggleTopBar()" aria-label="上部パネルの開閉" class="glass-panel rounded-xl w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-sm font-bold text-white cursor-pointer">▲</button>
+          <!-- Aether Currency -->
+          <div class="glass-panel rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 flex items-center gap-2">
+            <span class="text-base sm:text-lg">💠</span>
+            <div>
+              <div class="text-[11px] text-slate-100 leading-none">エーテル結晶</div>
+              <div id="hudAether" class="font-mono-num text-sm sm:text-base font-extrabold text-cyan-300">150</div>
+            </div>
+          </div>
+
+          <!-- Total Luck Multiplier Pill -->
+          <div class="relative group">
+            <button id="luckBadgeBtn" onclick="toggleLuckTooltip()" class="glass-panel rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 flex items-center gap-2 border border-amber-400/35 hover:border-amber-400/75 transition cursor-pointer">
+              <span class="text-base sm:text-lg">🍀</span>
+              <div class="text-left">
+                <div class="text-[11px] text-amber-300/90 leading-none flex items-center gap-1">
+                  <span>TOTAL LUCK</span>
+                  <span class="text-[10px] bg-amber-500/25 px-1 rounded">内訳</span>
+                </div>
+                <div id="hudTotalLuck" class="font-mono-num text-sm sm:text-base font-extrabold text-amber-300">1.00x</div>
+              </div>
+            </button>
+            <!-- Luck Breakdown Tooltip -->
+            <div id="luckTooltip" class="hidden group-hover:block absolute right-0 mt-2 w-64 glass-drawer rounded-xl p-3 text-xs z-50 border border-amber-400/35 shadow-2xl">
+              <div class="font-bold text-amber-300 mb-1.5 pb-1 border-b border-white/10 flex justify-between">
+                <span>🍀 運 (Luck) 倍率内訳</span>
+                <span id="tooltipLuckTotal" class="font-mono-num">1.00x</span>
+              </div>
+              <div id="luckBreakdownList" class="space-y-1 text-slate-100 font-mono-num text-[12px]"></div>
+              <div class="mt-2 pt-1.5 border-t border-white/10 text-[11px] text-slate-200">
+                ※10ロールごとに「幸運の拍動 (2.0x)」が発動します<br>※Luckは確率へなだらかに反映され、上限があります
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active Potions Indicator -->
+        <div id="activePotionsBar" class="flex flex-wrap justify-end gap-1.5 max-w-[340px]"></div>
+      </div>
+    </header>
+
+    <!-- Center Open Stage: Background Aura Shines Here Unobstructed -->
+    <main class="flex-1 flex flex-col items-center justify-between py-2 px-4 pointer-events-none relative">
+      <!-- Top of Center: Equipped Aura Info -->
+      <div id="equippedBanner" class="mt-1 sm:mt-2 text-center pointer-events-auto">
+
+        <div class="flex flex-wrap items-center justify-center gap-1.5">
+          <span id="stageNoBadge" class="font-mono-num px-2 py-0.5 rounded-full text-[12px] font-bold bg-slate-900/75 text-slate-100 border border-white/20">
+            No.1
+          </span>
+          <span id="stageRarityBadge" class="px-2.5 py-0.5 rounded-full text-[12px] font-display font-bold tracking-wider uppercase border">
+            Common // コモン
+          </span>
+          <span id="stageProbBadge" class="font-mono-num text-xs text-slate-100 bg-slate-900/65 px-2.5 py-0.5 rounded-full border border-white/15">
+            0.632777% (1 in 158)
+          </span>
+        </div>
+
+        <h2 id="stageAuraName" class="font-display text-2xl sm:text-4xl font-black tracking-wide mt-1 drop-shadow-[0_2px_18px_rgba(255,255,255,0.45)]">
+          白のゆらぎ
+        </h2>
+
+        <div id="stageTagRow" class="flex flex-wrap items-center justify-center gap-1.5 mt-1 text-[12px]">
+          <span id="stagePatternTag" class="px-2 py-0.5 rounded-md bg-white/10 text-slate-100 border border-white/10">演出: 周回</span>
+          <span id="stageExtraTag" class="px-2 py-0.5 rounded-md bg-white/10 text-slate-100 border border-white/10">追加: なし</span>
+          <span id="stageParticleTag" class="font-mono-num px-2 py-0.5 rounded-md bg-white/10 text-slate-100 border border-white/10">粒子: 12</span>
+          <span id="stageAuraPerk" class="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-200 border border-amber-400/25">装備効果: Luck +0%</span>
+        </div>
+      </div>
+
+      <!-- Center Slot Rolling Ticker Overlay (Visible only during spin) -->
+      <div id="rollTickerBox" class="hidden flex-col items-center justify-center my-auto z-20">
+        <div class="glass-drawer px-6 py-4 sm:px-10 sm:py-5 rounded-2xl border-2 border-purple-400/60 shadow-[0_0_50px_rgba(168,85,247,0.45)] text-center min-w-[260px] sm:min-w-[360px]">
+          <div id="tickerRarity" class="font-display text-xs font-bold tracking-widest uppercase text-purple-300 mb-1">
+            ROLLING...
+          </div>
+          <div id="tickerName" class="font-display text-xl sm:text-3xl font-black text-white tracking-wide">
+            ？？？
+          </div>
+          <div id="tickerProb" class="font-mono-num text-xs text-slate-100 mt-1">
+            ---
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom of Center: Last Pull Result Toast -->
+      <div id="lastResultBanner" class="mb-1 opacity-0 transition-all duration-300 transform translate-y-2">
+        <div class="glass-panel px-4 py-1.5 rounded-full flex flex-wrap items-center justify-center gap-2 border border-white/20">
+          <span id="lastResultNewBadge" class="hidden px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-display font-black text-[11px]">NEW!</span>
+          <span class="text-xs text-slate-100">獲得:</span>
+          <span id="lastResultName" class="text-xs sm:text-sm font-bold text-white">---</span>
+          <span id="lastResultProb" class="font-mono-num text-[12px] text-slate-100">---</span>
+          <span id="lastResultAction" class="text-[12px] text-cyan-300 font-semibold"></span>
+        </div>
+      </div>
+    </main>
+
+    <!-- Bottom Controls Dock -->
+    <footer class="w-full px-3 pb-3 sm:px-6 sm:pb-4 flex flex-col items-center gap-2 pointer-events-auto z-20">
+      <!-- Quick Potion Bar -->
+      <button id="toggleBottomBtn" onclick="toggleBottomBar()" class="glass-panel rounded-full px-4 py-1 text-[12px] font-bold text-slate-100 cursor-pointer">▼ 隠してオーラを大きく</button>
+      <div id="quickPotionWrap" class="flex items-center gap-1.5 overflow-x-auto max-w-full py-1 px-2.5 rounded-2xl glass-panel">
+        <span class="text-[11px] text-slate-100 font-bold px-1 whitespace-nowrap">🧪 霊薬:</span>
+        <div id="quickPotionSlots" class="flex items-center gap-1.5"></div>
+      </div>
+
+      <!-- Primary Roll (1x), Multi-Roll (10x), and Auto Roll Buttons -->
+      <div class="flex items-center justify-center gap-2 sm:gap-3 w-full max-w-xl">
+        <button id="rollBtn" onclick="triggerRoll(1)" class="roll-btn flex-1 py-3 sm:py-3.5 px-4 sm:px-6 rounded-2xl font-display font-black text-base sm:text-lg tracking-wider text-white flex items-center justify-center gap-2 cursor-pointer">
+          <span>✨ ROLL</span>
+          <span id="streakPill" class="text-[11px] font-mono-num bg-black/40 px-2 py-0.5 rounded-full text-amber-200">0/10</span>
+        </button>
+
+        <button id="multiRollBtn" onclick="triggerRoll(10)" class="multi-roll-btn py-3 sm:py-3.5 px-4 sm:px-5 rounded-2xl font-display font-black text-sm sm:text-base tracking-wider text-white flex items-center justify-center gap-1.5 cursor-pointer">
+          <span>🔥 10連</span>
+        </button>
+
+        <button id="autoRollBtn" onclick="toggleAutoRoll()" class="glass-panel py-2.5 sm:py-3 px-3.5 sm:px-4 rounded-2xl font-display font-bold text-xs tracking-wider text-slate-100 hover:text-white border border-white/20 flex flex-col items-center justify-center min-w-[74px] sm:min-w-[88px] transition cursor-pointer">
+          <span class="text-[10px] text-slate-200 leading-none mb-0.5">AUTO</span>
+          <span id="autoRollStateText" class="font-bold text-slate-100">OFF</span>
+        </button>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav id="bottomNav" class="glass-panel rounded-2xl p-1 flex items-center justify-between gap-1 w-full max-w-2xl">
+        <button onclick="openTab('collection')" data-tab="collection" class="nav-tab-btn flex-1 py-2 px-1.5 rounded-xl text-[12px] sm:text-sm font-bold text-slate-100 hover:text-white hover:bg-white/10 transition flex flex-col sm:flex-row items-center justify-center gap-1 cursor-pointer">
+          <span>📖</span><span>図鑑 (400)</span>
+        </button>
+        <button onclick="openTab('inventory')" data-tab="inventory" class="nav-tab-btn flex-1 py-2 px-1.5 rounded-xl text-[12px] sm:text-sm font-bold text-slate-100 hover:text-white hover:bg-white/10 transition flex flex-col sm:flex-row items-center justify-center gap-1 cursor-pointer">
+          <span>🎒</span><span>所持・錬金</span>
+        </button>
+        <button onclick="openTab('stats')" data-tab="stats" class="nav-tab-btn flex-1 py-2 px-1.5 rounded-xl text-[12px] sm:text-sm font-bold text-slate-100 hover:text-white hover:bg-white/10 transition flex flex-col sm:flex-row items-center justify-center gap-1 cursor-pointer">
+          <span>📊</span><span>統計・確率</span>
+        </button>
+        <button onclick="openTab('quests')" data-tab="quests" class="nav-tab-btn relative flex-1 py-2 px-1.5 rounded-xl text-[12px] sm:text-sm font-bold text-slate-100 hover:text-white hover:bg-white/10 transition flex flex-col sm:flex-row items-center justify-center gap-1 cursor-pointer">
+          <span>🏆</span><span>目標・実績</span>
+          <span id="questBadgeDot" class="hidden absolute top-1.5 right-2 w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+        </button>
+        <button onclick="openTab('settings')" data-tab="settings" class="nav-tab-btn flex-1 py-2 px-1.5 rounded-xl text-[12px] sm:text-sm font-bold text-slate-100 hover:text-white hover:bg-white/10 transition flex flex-col sm:flex-row items-center justify-center gap-1 cursor-pointer">
+          <span>⚙️</span><span>設定</span>
+        </button>
+      </nav>
+    </footer>
+  </div>
+
+  <!-- Slide-Up Modal Drawer for Tabs -->
+  <div id="drawerBackdrop" onclick="closeTab()" class="hidden fixed inset-0 bg-black/45 z-30 transition-opacity"></div>
+  <section id="tabDrawer" class="hidden fixed inset-x-2 bottom-2 top-14 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-5xl sm:top-14 sm:bottom-5 glass-drawer rounded-3xl z-40 flex flex-col overflow-hidden">
+    <div class="px-5 py-3.5 border-b border-white/10 flex items-center justify-between bg-slate-950/50">
+      <div class="flex items-center gap-2.5">
+        <span id="drawerIcon" class="text-xl">📖</span>
+        <h3 id="drawerTitle" class="font-display font-bold text-base sm:text-lg text-white">オーラ図鑑 (全400種)</h3>
+      </div>
+      <button onclick="closeTab()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-100 transition cursor-pointer" aria-label="閉じる">
+        ✕
+      </button>
+    </div>
+    <div id="drawerBody" class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5"></div>
+  </section>
+
+  <!-- 10-Roll Batch Result Modal -->
+  <div id="multiRollModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6">
+    <div class="glass-drawer rounded-3xl max-w-3xl w-full p-5 sm:p-6 border border-white/20 shadow-2xl flex flex-col max-h-[88vh]">
+      <div class="flex items-center justify-between pb-3 border-b border-white/10">
+        <div>
+          <span class="text-[11px] font-display tracking-widest uppercase text-amber-300 font-bold">10X SUMMON RESULT</span>
+          <h3 class="font-display text-lg sm:text-xl font-black text-white">10連オーラ抽選結果</h3>
+        </div>
+        <div id="multiRollSummaryBadge" class="text-xs font-mono-num text-cyan-300 font-bold"></div>
+      </div>
+      <div id="multiRollGrid" class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 my-4 overflow-y-auto pr-1"></div>
+      <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+        <button onclick="closeMultiRollModal()" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-xs sm:text-sm font-display font-bold text-white shadow-lg cursor-pointer">
+          OK (閉じる)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dramatic Cutscene Overlay (Epic+ Pulls) -->
+  <div id="cutsceneOverlay" class="hidden fixed inset-0 z-50 bg-black/92 flex flex-col items-center justify-center p-6 text-center select-none">
+    <div id="cutsceneVisual" class="relative w-52 h-52 sm:w-64 sm:h-64 flex items-center justify-center mb-5">
+      <div id="cutsceneRingOuter" class="absolute inset-0 rounded-full border-4 border-dashed border-amber-400 animate-spin-slow opacity-85"></div>
+      <div id="cutsceneRingInner" class="absolute inset-6 rounded-full border-2 border-amber-300 animate-spin-reverse opacity-90"></div>
+      <svg id="cutsceneStarSvg" class="w-32 h-32 sm:w-40 sm:h-40 text-amber-400 animate-pulse-scale" viewBox="0 0 100 100" fill="currentColor">
+        <polygon points="50,2 61,38 98,50 61,62 50,98 39,62 2,50 39,38" />
+      </svg>
+    </div>
+
+    <div id="cutsceneRarityLabel" class="font-display text-sm sm:text-lg font-black tracking-[0.25em] uppercase mb-2 text-amber-300">
+      EPIC DISCOVERY
+    </div>
+    <h2 id="cutsceneAuraTitle" class="font-display text-3xl sm:text-5xl font-black text-white tracking-wider mb-2">
+      No.221 紫電の王
+    </h2>
+    <div id="cutsceneProbText" class="font-mono-num text-sm sm:text-lg text-slate-100 mb-3">
+      0.025311% (1 in 3,951)
+    </div>
+    <p id="cutsceneDescText" class="text-xs sm:text-sm text-slate-100 max-w-md mb-8">
+      演出: 周回 / 追加演出: リング / 粒子数: 40
+    </p>
+
+    <button id="cutsceneCloseBtn" onclick="closeCutscene()" class="px-8 py-3 rounded-full bg-white text-slate-950 font-display font-black text-sm tracking-wider hover:scale-105 transition shadow-[0_0_30px_rgba(255,255,255,0.65)] cursor-pointer">
+      CONTINUE (続ける)
+    </button>
+  </div>
+
+  <!-- Custom Confirm / Import JSON Modal -->
+  <div id="customModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="glass-drawer rounded-2xl max-w-md w-full p-6 border border-white/20 shadow-2xl space-y-4">
+      <h4 id="customModalTitle" class="font-bold text-lg text-white">確認</h4>
+      <p id="customModalMessage" class="text-sm text-slate-100 leading-relaxed whitespace-pre-line"></p>
+      <textarea id="customModalInput" class="hidden w-full h-28 bg-slate-950/90 border border-white/20 rounded-xl p-2.5 text-xs font-mono-num text-slate-100 focus:outline-none focus:border-purple-400" placeholder='{"aether": ...}'></textarea>
+      <div class="flex justify-end gap-2.5 pt-2">
+        <button id="customModalCancel" onclick="closeCustomModal()" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-slate-100 cursor-pointer">
+          キャンセル
+        </button>
+        <button id="customModalConfirm" class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white cursor-pointer">
+          OK
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Notification Toast -->
+  <div id="toastContainer" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none"></div>
+
+  <script>
+    /**
+     * ============================================================================
+     * 1. ALL 8 RARITIES & COMPLETE 400-AURA DATASET (aura-list.xlsx EXACT)
+     * ============================================================================
+     */
+    const PATTERNS = ['周回', '上昇', 'きらめき', '波紋', '渦巻き', '降下', '脈動', '炎', '波', '爆発'];
+    const EXTRAS = ['なし', 'リング', 'リング・光線', 'リング・光線・グリッチ'];
+
+    const RARITIES = {
+      C: {
+        code: 'C',
+        enName: 'Common',
+        jpName: 'コモン',
+        order: 1,
+        baseWeight: 50,
+        count: 80,
+        tierPower: 0,
+        color: '#94a3b8',
+        bgClass: 'bg-slate-500/20 text-slate-100 border-slate-400/45',
+        aetherValue: 5,
+        luckBonus: 0.01
+      },
+      U: {
+        code: 'U',
+        enName: 'Uncommon',
+        jpName: 'アンコモン',
+        order: 2,
+        baseWeight: 25,
+        count: 60,
+        tierPower: 0.35,
+        color: '#38bdf8',
+        bgClass: 'bg-sky-500/20 text-sky-300 border-sky-400/45',
+        aetherValue: 15,
+        luckBonus: 0.05
+      },
+      R: {
+        code: 'R',
+        enName: 'Rare',
+        jpName: 'レア',
+        order: 3,
+        baseWeight: 15,
+        count: 50,
+        tierPower: 0.65,
+        color: '#a855f7',
+        bgClass: 'bg-purple-500/20 text-purple-300 border-purple-400/45',
+        aetherValue: 45,
+        luckBonus: 0.15
+      },
+      L7: {
+        code: 'L7',
+        enName: 'Lucky 7',
+        jpName: 'ラッキー7',
+        order: 4,
+        baseWeight: 7.77,
+        count: 30,
+        tierPower: 0.85,
+        color: '#facc15',
+        bgClass: 'bg-yellow-500/25 text-yellow-200 border-yellow-400/55',
+        aetherValue: 95,
+        luckBonus: 0.3
+      },
+      E: {
+        code: 'E',
+        enName: 'Epic',
+        jpName: 'エピック',
+        order: 5,
+        baseWeight: 1,
+        count: 40,
+        tierPower: 1.2,
+        color: '#f43f5e',
+        bgClass: 'bg-rose-500/25 text-rose-200 border-rose-400/55',
+        aetherValue: 380,
+        luckBonus: 0.6
+      },
+      L: {
+        code: 'L',
+        enName: 'Legendary',
+        jpName: 'レジェンダリー',
+        order: 6,
+        baseWeight: 0.001,
+        count: 20,
+        tierPower: 2.2,
+        color: '#f97316',
+        bgClass: 'bg-orange-500/30 text-orange-200 border-orange-400/75',
+        aetherValue: 4800,
+        luckBonus: 1.2
+      },
+      M: {
+        code: 'M',
+        enName: 'Mythical',
+        jpName: 'ミシカル',
+        order: 7,
+        baseWeight: 1e-9,
+        count: 12,
+        tierPower: 3.8,
+        color: '#e879f9',
+        bgClass: 'bg-fuchsia-500/30 text-fuchsia-200 border-fuchsia-300/80',
+        aetherValue: 120000,
+        luckBonus: 2.5
+      },
+      S: {
+        code: 'S',
+        enName: 'Secret',
+        jpName: 'シークレット',
+        order: 8,
+        baseWeight: 1e-13,
+        count: 8,
+        tierPower: 5.0,
+        color: '#22d3ee',
+        bgClass: 'bg-cyan-500/30 text-cyan-200 border-cyan-300',
+        aetherValue: 2500000,
+        luckBonus: 5.0
+      }
+    };
+
+    const RARITY_ORDER_LIST = ['C', 'U', 'R', 'L7', 'E', 'L', 'M', 'S'];
+    const TOTAL_BASE_WEIGHT = RARITY_ORDER_LIST.reduce((acc, k) => acc + RARITIES[k].baseWeight, 0); // 98.7710000010001
+
+    // Exact 300-entry array from aura-list.xlsx: [no, name, rarityCode, patternIdx, extraIdx, particles, hexColor, hueDeg]
+    const RAW_AURAS = [[1,"白のゆらぎ","C",0,0,12,"#999999",0],[2,"白のいぶき","C",1,0,12,"#999999",0],[3,"白のほたる","C",2,0,12,"#999999",0],[4,"白のさざ波","C",3,0,12,"#999999",0],[5,"白のつむじ風","C",4,0,12,"#999999",0],[6,"白のしずく","C",5,0,12,"#999999",0],[7,"白のかすみ","C",6,0,12,"#999999",0],[8,"白のほのお","C",7,0,12,"#999999",0],[9,"白のそよ風","C",8,0,12,"#999999",0],[10,"白の綿毛","C",9,0,12,"#999999",0],[11,"赤のゆらぎ","C",0,0,12,"#E05252",0],[12,"赤のいぶき","C",1,0,12,"#E05252",0],[13,"赤のほたる","C",2,0,12,"#E05252",0],[14,"赤のさざ波","C",3,0,12,"#E05252",0],[15,"赤のつむじ風","C",4,0,12,"#E05252",0],[16,"赤のしずく","C",5,0,12,"#E05252",0],[17,"赤のかすみ","C",6,0,12,"#E05252",0],[18,"赤のほのお","C",7,0,12,"#E05252",0],[19,"赤のそよ風","C",8,0,12,"#E05252",0],[20,"赤の綿毛","C",9,0,12,"#E05252",0],[21,"青のゆらぎ","C",0,0,12,"#5299E0",210],[22,"青のいぶき","C",1,0,12,"#5299E0",210],[23,"青のほたる","C",2,0,12,"#5299E0",210],[24,"青のさざ波","C",3,0,12,"#5299E0",210],[25,"青のつむじ風","C",4,0,12,"#5299E0",210],[26,"青のしずく","C",5,0,12,"#5299E0",210],[27,"青のかすみ","C",6,0,12,"#5299E0",210],[28,"青のほのお","C",7,0,12,"#5299E0",210],[29,"青のそよ風","C",8,0,12,"#5299E0",210],[30,"青の綿毛","C",9,0,12,"#5299E0",210],[31,"緑のゆらぎ","C",0,0,12,"#52E069",130],[32,"緑のいぶき","C",1,0,12,"#52E069",130],[33,"緑のほたる","C",2,0,12,"#52E069",130],[34,"緑のさざ波","C",3,0,12,"#52E069",130],[35,"緑のつむじ風","C",4,0,12,"#52E069",130],[36,"緑のしずく","C",5,0,12,"#52E069",130],[37,"緑のかすみ","C",6,0,12,"#52E069",130],[38,"緑のほのお","C",7,0,12,"#52E069",130],[39,"緑のそよ風","C",8,0,12,"#52E069",130],[40,"緑の綿毛","C",9,0,12,"#52E069",130],[41,"黄のゆらぎ","C",0,0,12,"#E0D452",55],[42,"黄のいぶき","C",1,0,12,"#E0D452",55],[43,"黄のほたる","C",2,0,12,"#E0D452",55],[44,"黄のさざ波","C",3,0,12,"#E0D452",55],[45,"黄のつむじ風","C",4,0,12,"#E0D452",55],[46,"黄のしずく","C",5,0,12,"#E0D452",55],[47,"黄のかすみ","C",6,0,12,"#E0D452",55],[48,"黄のほのお","C",7,0,12,"#E0D452",55],[49,"黄のそよ風","C",8,0,12,"#E0D452",55],[50,"黄の綿毛","C",9,0,12,"#E0D452",55],[51,"橙のゆらぎ","C",0,0,12,"#E09952",30],[52,"橙のいぶき","C",1,0,12,"#E09952",30],[53,"橙のほたる","C",2,0,12,"#E09952",30],[54,"橙のさざ波","C",3,0,12,"#E09952",30],[55,"橙のつむじ風","C",4,0,12,"#E09952",30],[56,"橙のしずく","C",5,0,12,"#E09952",30],[57,"橙のかすみ","C",6,0,12,"#E09952",30],[58,"橙のほのお","C",7,0,12,"#E09952",30],[59,"橙のそよ風","C",8,0,12,"#E09952",30],[60,"橙の綿毛","C",9,0,12,"#E09952",30],[61,"紫のゆらぎ","C",0,0,12,"#B152E0",280],[62,"紫のいぶき","C",1,0,12,"#B152E0",280],[63,"紫のほたる","C",2,0,12,"#B152E0",280],[64,"紫のさざ波","C",3,0,12,"#B152E0",280],[65,"紫のつむじ風","C",4,0,12,"#B152E0",280],[66,"紫のしずく","C",5,0,12,"#B152E0",280],[67,"紫のかすみ","C",6,0,12,"#B152E0",280],[68,"紫のほのお","C",7,0,12,"#B152E0",280],[69,"紫のそよ風","C",8,0,12,"#B152E0",280],[70,"紫の綿毛","C",9,0,12,"#B152E0",280],[71,"桃のゆらぎ","C",0,0,12,"#E05299",330],[72,"桃のいぶき","C",1,0,12,"#E05299",330],[73,"桃のほたる","C",2,0,12,"#E05299",330],[74,"桃のさざ波","C",3,0,12,"#E05299",330],[75,"桃のつむじ風","C",4,0,12,"#E05299",330],[76,"桃のしずく","C",5,0,12,"#E05299",330],[77,"桃のかすみ","C",6,0,12,"#E05299",330],[78,"桃のほのお","C",7,0,12,"#E05299",330],[79,"桃のそよ風","C",8,0,12,"#E05299",330],[80,"桃の綿毛","C",9,0,12,"#E05299",330],[81,"琥珀の環","U",0,0,19,"#EBB447",40],[82,"琥珀の吐息","U",1,0,19,"#EBB447",40],[83,"琥珀のきらめき","U",2,0,19,"#EBB447",40],[84,"琥珀の閃光","U",3,0,19,"#EBB447",40],[85,"琥珀の渦","U",4,0,19,"#EBB447",40],[86,"琥珀の雫","U",5,0,19,"#EBB447",40],[87,"琥珀の旋律","U",6,0,19,"#EBB447",40],[88,"琥珀の残光","U",7,0,19,"#EBB447",40],[89,"琥珀の羽衣","U",8,0,19,"#EBB447",40],[90,"琥珀の結晶","U",9,0,19,"#EBB447",40],[91,"翡翠の環","U",0,0,19,"#47EBB4",160],[92,"翡翠の吐息","U",1,0,19,"#47EBB4",160],[93,"翡翠のきらめき","U",2,0,19,"#47EBB4",160],[94,"翡翠の閃光","U",3,0,19,"#47EBB4",160],[95,"翡翠の渦","U",4,0,19,"#47EBB4",160],[96,"翡翠の雫","U",5,0,19,"#47EBB4",160],[97,"翡翠の旋律","U",6,0,19,"#47EBB4",160],[98,"翡翠の残光","U",7,0,19,"#47EBB4",160],[99,"翡翠の羽衣","U",8,0,19,"#47EBB4",160],[100,"翡翠の結晶","U",9,0,19,"#47EBB4",160],[101,"藍の環","U",0,0,19,"#4755EB",235],[102,"藍の吐息","U",1,0,19,"#4755EB",235],[103,"藍のきらめき","U",2,0,19,"#4755EB",235],[104,"藍の閃光","U",3,0,19,"#4755EB",235],[105,"藍の渦","U",4,0,19,"#4755EB",235],[106,"藍の雫","U",5,0,19,"#4755EB",235],[107,"藍の旋律","U",6,0,19,"#4755EB",235],[108,"藍の残光","U",7,0,19,"#4755EB",235],[109,"藍の羽衣","U",8,0,19,"#4755EB",235],[110,"藍の結晶","U",9,0,19,"#4755EB",235],[111,"紅の環","U",0,0,19,"#EB4763",350],[112,"紅の吐息","U",1,0,19,"#EB4763",350],[113,"紅のきらめき","U",2,0,19,"#EB4763",350],[114,"紅の閃光","U",3,0,19,"#EB4763",350],[115,"紅の渦","U",4,0,19,"#EB4763",350],[116,"紅の雫","U",5,0,19,"#EB4763",350],[117,"紅の旋律","U",6,0,19,"#EB4763",350],[118,"紅の残光","U",7,0,19,"#EB4763",350],[119,"紅の羽衣","U",8,0,19,"#EB4763",350],[120,"紅の結晶","U",9,0,19,"#EB4763",350],[121,"銀の環","U",0,0,19,"#919CA1",200],[122,"銀の吐息","U",1,0,19,"#919CA1",200],[123,"銀のきらめき","U",2,0,19,"#919CA1",200],[124,"銀の閃光","U",3,0,19,"#919CA1",200],[125,"銀の渦","U",4,0,19,"#919CA1",200],[126,"銀の雫","U",5,0,19,"#919CA1",200],[127,"銀の旋律","U",6,0,19,"#919CA1",200],[128,"銀の残光","U",7,0,19,"#919CA1",200],[129,"銀の羽衣","U",8,0,19,"#919CA1",200],[130,"銀の結晶","U",9,0,19,"#919CA1",200],[131,"菫の環","U",0,0,19,"#9947EB",270],[132,"菫の吐息","U",1,0,19,"#9947EB",270],[133,"菫のきらめき","U",2,0,19,"#9947EB",270],[134,"菫の閃光","U",3,0,19,"#9947EB",270],[135,"菫の渦","U",4,0,19,"#9947EB",270],[136,"菫の雫","U",5,0,19,"#9947EB",270],[137,"菫の旋律","U",6,0,19,"#9947EB",270],[138,"菫の残光","U",7,0,19,"#9947EB",270],[139,"菫の羽衣","U",8,0,19,"#9947EB",270],[140,"菫の結晶","U",9,0,19,"#9947EB",270],[141,"月光の輪","R",0,0,26,"#477EEB",220],[142,"月光の翼","R",1,0,26,"#477EEB",220],[143,"月光の祈り","R",2,0,26,"#477EEB",220],[144,"月光の波紋","R",3,0,26,"#477EEB",220],[145,"月光の舞","R",4,0,26,"#477EEB",220],[146,"月光の羽","R",5,0,26,"#477EEB",220],[147,"月光の冠","R",6,0,26,"#477EEB",220],[148,"月光の炎","R",7,0,26,"#477EEB",220],[149,"月光の幻","R",8,0,26,"#477EEB",220],[150,"月光の守護","R",9,0,26,"#477EEB",220],[151,"星屑の輪","R",0,0,26,"#EBCF47",50],[152,"星屑の翼","R",1,0,26,"#EBCF47",50],[153,"星屑の祈り","R",2,0,26,"#EBCF47",50],[154,"星屑の波紋","R",3,0,26,"#EBCF47",50],[155,"星屑の舞","R",4,0,26,"#EBCF47",50],[156,"星屑の羽","R",5,0,26,"#EBCF47",50],[157,"星屑の冠","R",6,0,26,"#EBCF47",50],[158,"星屑の炎","R",7,0,26,"#EBCF47",50],[159,"星屑の幻","R",8,0,26,"#EBCF47",50],[160,"星屑の守護","R",9,0,26,"#EBCF47",50],[161,"雷鳴の輪","R",0,0,26,"#7E47EB",260],[162,"雷鳴の翼","R",1,0,26,"#7E47EB",260],[163,"雷鳴の祈り","R",2,0,26,"#7E47EB",260],[164,"雷鳴の波紋","R",3,0,26,"#7E47EB",260],[165,"雷鳴の舞","R",4,0,26,"#7E47EB",260],[166,"雷鳴の羽","R",5,0,26,"#7E47EB",260],[167,"雷鳴の冠","R",6,0,26,"#7E47EB",260],[168,"雷鳴の炎","R",7,0,26,"#7E47EB",260],[169,"雷鳴の幻","R",8,0,26,"#7E47EB",260],[170,"雷鳴の守護","R",9,0,26,"#7E47EB",260],[171,"深海の輪","R",0,0,26,"#47CFEB",190],[172,"深海の翼","R",1,0,26,"#47CFEB",190],[173,"深海の祈り","R",2,0,26,"#47CFEB",190],[174,"深海の波紋","R",3,0,26,"#47CFEB",190],[175,"深海の舞","R",4,0,26,"#47CFEB",190],[176,"深海の羽","R",5,0,26,"#47CFEB",190],[177,"深海の冠","R",6,0,26,"#47CFEB",190],[178,"深海の炎","R",7,0,26,"#47CFEB",190],[179,"深海の幻","R",8,0,26,"#47CFEB",190],[180,"深海の守護","R",9,0,26,"#47CFEB",190],[181,"桜花の輪","R",0,0,26,"#EB4799",330],[182,"桜花の翼","R",1,0,26,"#EB4799",330],[183,"桜花の祈り","R",2,0,26,"#EB4799",330],[184,"桜花の波紋","R",3,0,26,"#EB4799",330],[185,"桜花の舞","R",4,0,26,"#EB4799",330],[186,"桜花の羽","R",5,0,26,"#EB4799",330],[187,"桜花の冠","R",6,0,26,"#EB4799",330],[188,"桜花の炎","R",7,0,26,"#EB4799",330],[189,"桜花の幻","R",8,0,26,"#EB4799",330],[190,"桜花の守護","R",9,0,26,"#EB4799",330],[191,"七色の虹","L7",0,0,33,"#F53D3D",0],[192,"七色のクローバー","L7",1,0,33,"#F5993D",30],[193,"七色の星","L7",2,0,33,"#F5F53D",60],[194,"七色のコイン","L7",3,0,33,"#99F53D",90],[195,"七色のサイコロ","L7",4,0,33,"#3DF53D",120],[196,"七色の雨","L7",5,0,33,"#3DF599",150],[197,"七色の鈴","L7",6,0,33,"#3DF5F5",180],[198,"七色のランタン","L7",7,0,33,"#3D99F5",210],[199,"七色のリボン","L7",8,0,33,"#3D3DF5",240],[200,"七色の花火","L7",9,0,33,"#993DF5",270],[201,"幸運の虹","L7",0,0,33,"#7AF53D",100],[202,"幸運のクローバー","L7",1,0,33,"#3DF55C",130],[203,"幸運の星","L7",2,0,33,"#3DF5B8",160],[204,"幸運のコイン","L7",3,0,33,"#3DD6F5",190],[205,"幸運のサイコロ","L7",4,0,33,"#3D7AF5",220],[206,"幸運の雨","L7",5,0,33,"#5C3DF5",250],[207,"幸運の鈴","L7",6,0,33,"#B83DF5",280],[208,"幸運のランタン","L7",7,0,33,"#F53DD6",310],[209,"幸運のリボン","L7",8,0,33,"#F53D7A",340],[210,"幸運の花火","L7",9,0,33,"#F55C3D",10],[211,"福招きの虹","L7",0,0,33,"#3DB8F5",200],[212,"福招きのクローバー","L7",1,0,33,"#3D5CF5",230],[213,"福招きの星","L7",2,0,33,"#7A3DF5",260],[214,"福招きのコイン","L7",3,0,33,"#D63DF5",290],[215,"福招きのサイコロ","L7",4,0,33,"#F53DB8",320],[216,"福招きの雨","L7",5,0,33,"#F53D5C",350],[217,"福招きの鈴","L7",6,0,33,"#F57A3D",20],[218,"福招きのランタン","L7",7,0,33,"#F5D63D",50],[219,"福招きのリボン","L7",8,0,33,"#B8F53D",80],[220,"福招きの花火","L7",9,0,33,"#5CF53D",110],[221,"紫電の王","E",0,1,40,"#F53D3D",0],[222,"煉獄の華","E",1,1,40,"#F5AE3D",37],[223,"氷河の女王","E",2,1,40,"#CAF53D",74],[224,"銀河の渦","E",3,1,40,"#59F53D",111],[225,"蒼穹の翼","E",4,1,40,"#3DF593",148],[226,"暁の剣","E",5,1,40,"#3DE6F5",185],[227,"黄昏の幕","E",6,1,40,"#3D74F5",222],[228,"深淵の眼","E",7,1,40,"#773DF5",259],[229,"時空の歪み","E",8,1,40,"#E93DF5",296],[230,"幻夢の蝶","E",9,1,40,"#F53D90",333],[231,"雷帝の咆哮","E",0,1,40,"#F55C3D",10],[232,"炎竜の息吹","E",1,1,40,"#F5CD3D",47],[233,"霜月の涙","E",2,1,40,"#ABF53D",84],[234,"翠嵐の舞","E",3,1,40,"#3DF540",121],[235,"黒曜の鎧","E",4,1,40,"#3DF5B1",158],[236,"水晶の森","E",5,1,40,"#3DC7F5",195],[237,"星海の航路","E",6,1,40,"#3D56F5",232],[238,"夜明けの鐘","E",7,1,40,"#963DF5",269],[239,"虚空の花","E",8,1,40,"#F53DE2",306],[240,"極光の帯","E",9,1,40,"#F53D71",343],[241,"血月の誓い","E",0,1,40,"#F57A3D",20],[242,"聖夜の鈴","E",1,1,40,"#F5EC3D",57],[243,"砂漠の蜃気楼","E",2,1,40,"#8DF53D",94],[244,"雲海の主","E",3,1,40,"#3DF55F",131],[245,"凍てつく詩","E",4,1,40,"#3DF5D0",168],[246,"燃える薔薇","E",5,1,40,"#3DA8F5",205],[247,"影狼の遠吠え","E",6,1,40,"#433DF5",242],[248,"蓮華の浄土","E",7,1,40,"#B53DF5",279],[249,"真紅の彗星","E",8,1,40,"#F53DC4",316],[250,"天空の城","E",9,1,40,"#F53D53",353],[251,"魔導の螺旋","E",0,1,40,"#F5993D",30],[252,"夢喰いの獏","E",1,1,40,"#DFF53D",67],[253,"宵闇の羽","E",2,1,40,"#6EF53D",104],[254,"鏡面の湖","E",3,1,40,"#3DF57D",141],[255,"雪華の舞踏","E",4,1,40,"#3DF5EF",178],[256,"朱雀の炎","E",5,1,40,"#3D8AF5",215],[257,"玄武の盾","E",6,1,40,"#623DF5",252],[258,"白虎の牙","E",7,1,40,"#D33DF5",289],[259,"青龍の鱗","E",8,1,40,"#F53DA5",326],[260,"龍脈の輝き","E",9,1,40,"#F5463D",3],[261,"太陽神の冠","L",0,2,47,"#F57A3D",20],[262,"月読の微笑","L",1,2,47,"#DFF53D",67],[263,"天照","L",2,2,47,"#50F53D",114],[264,"九尾の狐火","L",3,2,47,"#3DF5BB",161],[265,"八岐の大蛇","L",4,2,47,"#3D9FF5",208],[266,"世界樹の息吹","L",5,2,47,"#6B3DF5",255],[267,"不死鳥の再誕","L",6,2,47,"#F53DEF",302],[268,"雷神の太鼓","L",7,2,47,"#F53D5F",349],[269,"海神の三叉","L",8,2,47,"#F5AB3D",36],[270,"冥王の吐息","L",9,2,47,"#AEF53D",83],[271,"天女の羽衣","L",0,2,47,"#3DF55C",130],[272,"星の誕生","L",1,2,47,"#3DF5EC",177],[273,"創世の光","L",2,2,47,"#3D6EF5",224],[274,"終焉の炎","L",3,2,47,"#9C3DF5",271],[275,"時の砂時計","L",4,2,47,"#F53DBE",318],[276,"運命の糸","L",5,2,47,"#F54C3D",5],[277,"龍神の祝福","L",6,2,47,"#F5DC3D",52],[278,"神域の静寂","L",7,2,47,"#7DF53D",99],[279,"宇宙の鼓動","L",8,2,47,"#3DF58D",146],[280,"永遠の黎明","L",9,2,47,"#3DCDF5",193],[281,"無限回廊","M",0,2,54,"#FF33FF",300],[282,"絶対零度の王","M",1,2,54,"#FF339C",329],[283,"アカシックレコード","M",2,2,54,"#FF333A",358],[284,"神々の黄昏","M",3,2,54,"#FF8F33",27],[285,"万象の源","M",4,2,54,"#FFF133",56],[286,"零の特異点","M",5,2,54,"#AAFF33",85],[287,"因果律の破壊者","M",6,2,54,"#47FF33",114],[288,"次元の彼方","M",7,2,54,"#33FF81",143],[289,"虚無の王冠","M",8,2,54,"#33FFE4",172],[290,"終末の詩","M",9,2,54,"#33B8FF",201],[291,"天地開闢","M",0,2,54,"#3355FF",230],[292,"全知の瞳","M",1,2,54,"#7433FF",259],[293,"？？？","S",0,3,61,"#33FFFF",180],[294,"名もなき光","S",1,3,61,"#3366FF",225],[295,"404 NOT FOUND","S",2,3,61,"#9933FF",270],[296,"開発者の秘密","S",3,3,61,"#FF33CC",315],[297,"観測者","S",4,3,61,"#FF3333",0],[298,"0.0000000000001%の奇跡","S",5,3,61,"#FFCC33",45],[299,"最後の一滴","S",6,3,61,"#99FF33",90],[300,"Aura∞","S",7,3,61,"#33FF66",135]];
+
+    // ---- 追加100種 (No.301〜400): ノーマル系50 / レア・エピック20 / 極レア30 ----
+    (function addExtraAuras() {
+      const hex = (h, s = 90, l = 60) => {
+        s /= 100; l /= 100;
+        const a = s * Math.min(l, 1 - l);
+        const f = n => { const k = (n + h / 30) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+        return '#' + [f(0), f(8), f(4)].map(x => Math.round(x * 255).toString(16).padStart(2, '0')).join('').toUpperCase();
+      };
+      let no = 301;
+      const add = (name, code, pat, extra, particles, hue, color) =>
+        RAW_AURAS.push([no++, name, code, pat, extra, particles, color || hex(hue), hue]);
+      const cSuf = ['ゆらぎ','いぶき','ほたる','さざ波','つむじ風','しずく','かすみ','ほのお','そよ風','綿毛'];
+      const uSuf = ['の環','の吐息','のきらめき','の閃光','の渦','の雫','の旋律','の残光','の羽衣','の結晶'];
+      const rSuf = ['の輪','の翼','の祈り','の波紋','の舞','の羽','の冠','の炎','の幻','の守護'];
+      [['灰','#8A94A3',215],['水','#52D6E0',185],['若草','#A6E052',85]].forEach(([n, c, h]) => cSuf.forEach((x, i) => add(n + 'の' + x, 'C', i, 0, 12, h, c)));
+      [['珊瑚','#EB6F5E',8],['瑠璃','#2F9BEB',205]].forEach(([n, c, h]) => uSuf.forEach((x, i) => add(n + x, 'U', i, 0, 19, h, c)));
+      rSuf.forEach((x, i) => add('紅蓮' + x, 'R', i, 0, 26, 5, '#EB5547'));
+      [['星喰いの竜',15],['月影の舞姫',230],['虹彩の鳥',160],['雷霆の槍',55],['白夜の雪原',195],['紫苑の夢',275],['朧月の宴',320],['灼熱の砂塵',30],['翠玉の泉',140],['夢幻の回廊',250]]
+        .forEach(([n, h], i) => add(n, 'E', i, 1, 40, h));
+      [['創世の竜王',45],['終焉の天使',300],['時喰いの魔神',270],['星間の旅人',200],['絶対の守護者',215],['黄金の方舟',48],['虚空の巫女',285],['天空の裁定者',190],['銀河の織り手',240],['始原の炎',12],['永劫の月',60],['神話の終端',330]]
+        .forEach(([n, h], i) => add(n, 'L', i % 10, 2, 47, h, hex(h, 95, 60)));
+      [['世界の果て',310],['因果の外側',180],['星々の墓標',250],['無限の螺旋',130],['原初の沈黙',200],['時の終着',35],['神殺しの刃',350],['夢の最果て',280],['宇宙卵',160],['絶対なる無',220]]
+        .forEach(([n, h], i) => add(n, 'M', i, 2, 54, h, hex(h, 100, 60)));
+      [['Null∞',180],['ERROR_AURA',0],['Ω',270],['観測不能',220],['開発者のため息',320],['∞の向こう側',150],['Aura∞∞',45],['THE LAST ROLL',90]]
+        .forEach(([n, h], i) => add(n, 'S', [8,9,0,1,2,3,4,5][i], 3, 61, h, hex(h, 100, 60)));
+      // 各レアリティの種類数を実データから自動算出 (確率は 重み ÷ 種類数)
+      RARITY_ORDER_LIST.forEach(c => { RARITIES[c].count = RAW_AURAS.filter(a => a[2] === c).length; });
+    })();
+
+    // Expand RAW_AURAS into full Aura Objects at startup
+    // 表示用のわかりやすい確率(%)。実際の抽選確率とは別 (実際はもっと厳しい)
+    const DISPLAY_PCT = { C: 50, U: 25, R: 15, L7: 7.77, E: 1, L: 0.001, M: 0.0000001, S: 0.0000000000001 };
+
+    const AURAS = RAW_AURAS.map(([no, name, rarityCode, patternIdx, extraIdx, particles, hexColor, hueDeg]) => {
+      const rInfo = RARITIES[rarityCode];
+      const baseWeightPerAura = rInfo.baseWeight / rInfo.count;
+      const baseProbPercent = DISPLAY_PCT[rarityCode];
+      const oneIn = 100 / baseProbPercent;
+
+      // Subtle scaling bonus within rarity tier
+      const tierBonus = rInfo.luckBonus * (1 + ((no % 10) * 0.03));
+
+      return {
+        no,
+        id: String(no),
+        name,
+        rarity: rarityCode,
+        patternIdx,
+        patternName: PATTERNS[patternIdx],
+        extraIdx,
+        extraName: EXTRAS[extraIdx],
+        particles,
+        color: hexColor,
+        hueDeg,
+        baseWeightPerAura,
+        baseProbPercent,
+        oneIn,
+        luckBonus: tierBonus,
+        perkText: `装備効果: Luck +${formatPercentBonus(tierBonus * 100)}`,
+        desc: `No.${no}【${rInfo.jpName}】演出パターン「${PATTERNS[patternIdx]}」・追加演出「${EXTRAS[extraIdx]}」・粒子数 ${particles} のオーラ。`
+      };
+    });
+
+    const AURA_MAP = new Map(AURAS.map(a => [a.no, a]));
+    const AURAS_BY_RARITY = {};
+    RARITY_ORDER_LIST.forEach(code => {
+      AURAS_BY_RARITY[code] = AURAS.filter(a => a.rarity === code);
+    });
+
+    function getAuraByNo(no) {
+      return AURA_MAP.get(Number(no)) || AURAS[0];
+    }
+
+    // Probability Fluctuation / Weather Events
+    const WEATHER_EVENTS = [
+      {
+        id: 'normal',
+        name: '平穏な星屑 (Normal)',
+        icon: '🌌',
+        duration: 45,
+        luckMult: 1.0,
+        color: '#38bdf8',
+        borderClass: 'border-sky-400'
+      },
+      {
+        id: 'starfall',
+        name: '流星群 (Starfall)',
+        icon: '🌠',
+        duration: 45,
+        luckMult: 3.5,
+        color: '#facc15',
+        borderClass: 'border-yellow-400'
+      },
+      {
+        id: 'eclipse',
+        name: '皆既日食 (Solar Eclipse)',
+        icon: '🌑',
+        duration: 40,
+        luckMult: 18.0,
+        color: '#a855f7',
+        borderClass: 'border-purple-500'
+      },
+      {
+        id: 'divine',
+        name: '神域の祝福 (Divine Blessing)',
+        icon: '👼',
+        duration: 35,
+        luckMult: 250.0,
+        color: '#fbbf24',
+        borderClass: 'border-amber-400'
+      },
+      {
+        id: 'convergence',
+        name: '宇宙収束 (Cosmic Convergence)',
+        icon: '🌀',
+        duration: 25,
+        luckMult: 2500.0,
+        color: '#22d3ee',
+        borderClass: 'border-cyan-400'
+      }
+    ];
+
+    // Alchemy Potions
+    const POTIONS = [
+      {
+        id: 'minor_luck',
+        name: '微光の霊薬',
+        icon: '🧪',
+        cost: 50,
+        type: 'timed',
+        duration: 60,
+        luckMult: 2.0,
+        desc: '60秒間、Luck倍率が 2.0倍 になる。'
+      },
+      {
+        id: 'fortune_potion',
+        name: '幸運の秘薬',
+        icon: '⚗️',
+        cost: 250,
+        type: 'timed',
+        duration: 60,
+        luckMult: 10.0,
+        desc: '60秒間、Luck倍率が 10.0倍 になる。'
+      },
+      {
+        id: 'supernova_elixir',
+        name: '超新星エリクサー',
+        icon: '🌟',
+        cost: 2500,
+        type: 'next_roll',
+        luckMult: 250.0,
+        desc: '次の1ロールのLuck倍率が 250倍 になる！'
+      },
+      {
+        id: 'oblivion_potion',
+        name: '創世の禁薬',
+        icon: '🔮',
+        cost: 40000,
+        type: 'next_roll',
+        luckMult: 5000.0,
+        desc: '次の1ロールのLuck倍率が 5,000倍 になる究極秘薬！'
+      },
+      {
+        id: 'weather_caller',
+        name: '次元干渉装置',
+        icon: '📡',
+        cost: 1200,
+        type: 'trigger_weather',
+        desc: '即座に強力な確率変動イベント（流星群〜宇宙収束）を発生させる！'
+      }
+    ];
+
+    // Upgradeable Luck Charms
+    const CHARMS = [
+      {
+        id: 'clover_charm',
+        name: '四つ葉の結晶チャーム',
+        icon: '🍀',
+        maxLevel: 10,
+        baseCost: 80,
+        costScale: 1.8,
+        luckPerLevel: 0.25,
+        desc: '基礎Luckを +25% / Lv 永続上昇させる。'
+      },
+      {
+        id: 'star_compass',
+        name: '星屑の羅針盤',
+        icon: '🧭',
+        maxLevel: 10,
+        baseCost: 400,
+        costScale: 2.1,
+        luckPerLevel: 1.0,
+        desc: '基礎Luckを +100% (1.0x) / Lv 永続上昇させる。'
+      },
+      {
+        id: 'chronos_gear',
+        name: '刻の神の歯車',
+        icon: '⚙️',
+        maxLevel: 8,
+        baseCost: 5000,
+        costScale: 2.5,
+        luckPerLevel: 8.0,
+        desc: '基礎Luckを +800% (8x) / Lv 永続上昇させる。'
+      },
+      {
+        id: 'singularity_core',
+        name: '特異点のコア',
+        icon: '💠',
+        maxLevel: 5,
+        baseCost: 80000,
+        costScale: 3.0,
+        luckPerLevel: 50.0,
+        desc: '基礎Luckを +5,000% (50x) / Lv 永続上昇させる。'
+      }
+    ];
+
+    // Achievements
+    const ACHIEVEMENTS = [
+      {
+        id: 'first_roll',
+        name: '運命の第一歩',
+        desc: '初めてオーラガチャを引く',
+        luckBonus: 0.05,
+        check: (s) => s.stats.totalRolls >= 1
+      },
+      {
+        id: 'rolls_100',
+        name: '星屑の探求者',
+        desc: '累計100回ロールする',
+        luckBonus: 0.15,
+        check: (s) => s.stats.totalRolls >= 100
+      },
+      {
+        id: 'rolls_1000',
+        name: '確率の支配者',
+        desc: '累計1,000回ロールする',
+        luckBonus: 0.50,
+        check: (s) => s.stats.totalRolls >= 1000
+      },
+      {
+        id: 'pull_l7',
+        name: 'ラッキー7の祝福',
+        desc: 'Lucky 7 (L7) のオーラを獲得する',
+        luckBonus: 0.27,
+        check: (s) => (s.stats.rarityCounts.L7 || 0) > 0
+      },
+      {
+        id: 'pull_epic',
+        name: 'リングの覚醒',
+        desc: 'Epic (E) 以上のオーラを獲得する',
+        luckBonus: 0.35,
+        check: (s) => s.stats.highestOrder >= RARITIES.E.order
+      },
+      {
+        id: 'pull_legendary',
+        name: '神域の光線',
+        desc: 'Legendary (L) 以上のオーラを獲得する',
+        luckBonus: 0.8,
+        check: (s) => s.stats.highestOrder >= RARITIES.L.order
+      },
+      {
+        id: 'pull_mythical',
+        name: '神話への到達',
+        desc: 'Mythical (M) 以上のオーラを獲得する',
+        luckBonus: 2.0,
+        check: (s) => s.stats.highestOrder >= RARITIES.M.order
+      },
+      {
+        id: 'pull_secret',
+        name: '0.0000000000001%の観測者',
+        desc: 'Secret (S) のオーラを獲得する',
+        luckBonus: 5.0,
+        check: (s) => s.stats.highestOrder >= RARITIES.S.order
+      },
+      {
+        id: 'all_10_patterns',
+        name: '全10演出パターン制覇',
+        desc: '全10種類の演出パターン（周回〜爆発）のオーラを発見する',
+        luckBonus: 0.40,
+        check: (s) => getDiscoveredPatternsSet(s).size >= 10
+      },
+      {
+        id: 'dex_100',
+        name: '百花繚乱の収集家',
+        desc: 'オーラ図鑑を100種類以上埋める',
+        luckBonus: 0.60,
+        check: (s) => Object.keys(s.discovered).length >= 100
+      },
+      {
+        id: 'dex_all',
+        name: `全${AURAS.length}種コンプリート`,
+        desc: `全${AURAS.length}種類のオーラをすべて発見する`,
+        luckBonus: 10.0,
+        check: (s) => Object.keys(s.discovered).length >= AURAS.length
+      }
+    ];
+
+    function getDiscoveredPatternsSet(stateObj = gameState) {
+      const set = new Set();
+      Object.keys(stateObj.discovered || {}).forEach(noStr => {
+        const a = AURA_MAP.get(Number(noStr));
+        if (a) set.add(a.patternIdx);
+      });
+      return set;
+    }
+
+    /**
+     * ============================================================================
+     * 2. GAME STATE & PERSISTENCE (STARTS WITH No.1 白のゆらぎ EQUIPPED)
+     * ============================================================================
+     */
+    const SAVE_KEY = 'aura_genesis_rng_save_v3_300';
+
+    const defaultState = () => ({
+      aether: 150,
+      equippedAuraNo: 1, // No.1 白のゆらぎ
+      inventory: { 1: 1 },
+      lockedAuras: { 1: true },
+      discovered: { 1: 1 },
+      potions: {
+        minor_luck: 2,
+        fortune_potion: 1,
+        supernova_elixir: 0,
+        oblivion_potion: 0,
+        weather_caller: 1
+      },
+      activeTimedPotions: [],
+      nextRollBoosts: [],
+      charms: {
+        clover_charm: 0,
+        star_compass: 0,
+        chronos_gear: 0,
+        singularity_core: 0
+      },
+      achievements: {},
+      quest: {
+        id: 1,
+        type: 'roll',
+        title: 'オーラ抽選を15回行う',
+        target: 15,
+        progress: 0,
+        rewardAether: 120,
+        rewardPotion: 'minor_luck'
+      },
+      stats: {
+        totalRolls: 0,
+        playTimeSec: 0,
+        highestAuraNo: 1,
+        highestOrder: 1,
+        rarityCounts: {
+          C: 1,
+          U: 0,
+          R: 0,
+          L7: 0,
+          E: 0,
+          L: 0,
+          M: 0,
+          S: 0
+        },
+        totalAetherEarned: 150,
+        totalAetherSpent: 0,
+        rollStreak: 0
+      },
+      settings: {
+        fastRoll: false,
+        cutsceneThreshold: 5, // 5 = Epic+
+        autoEquipBetter: true,
+        autoConvertBelowOrder: 0,
+        sfxEnabled: true,
+        sfxVolume: 0.45,
+        uiTopCollapsed: false,
+        uiBottomCollapsed: false
+      }
+    });
+
+    let gameState = defaultState();
+
+    // Runtime UI & Filter state
+    let isRolling = false;
+    let autoRollEnabled = false;
+    let autoRollTimer = null;
+    let currentTab = null;
+    let currentWeather = WEATHER_EVENTS[0];
+    let weatherRemainingSec = WEATHER_EVENTS[0].duration;
+
+    // Collection Filter State
+    let dexFilterRarity = 'ALL';
+    let dexFilterPattern = 'ALL';
+    let dexSearchQuery = '';
+    let dexOnlyDiscovered = false;
+
+    function getCurrentDisplayAura() {
+      return getAuraByNo(gameState.equippedAuraNo || 1);
+    }
+
+    function loadGame() {
+      try {
+        const raw = localStorage.getItem(SAVE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const def = defaultState();
+          gameState = {
+            ...def,
+            ...parsed,
+            stats: {
+              ...def.stats,
+              ...(parsed.stats || {}),
+              rarityCounts: { ...def.stats.rarityCounts, ...(parsed.stats?.rarityCounts || {}) }
+            },
+            settings: { ...def.settings, ...(parsed.settings || {}) },
+            charms: { ...def.charms, ...(parsed.charms || {}) },
+            potions: { ...def.potions, ...(parsed.potions || {}) },
+            quest: { ...def.quest, ...(parsed.quest || {}) }
+          };
+          if (!AURA_MAP.has(Number(gameState.equippedAuraNo))) {
+            gameState.equippedAuraNo = 1;
+          }
+          const now = Date.now();
+          gameState.activeTimedPotions = (gameState.activeTimedPotions || []).filter(p => p.expiresAt > now);
+        }
+      } catch (e) {
+        console.error('Failed to load save:', e);
+      }
+    }
+
+    function saveGame() {
+      try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify(gameState));
+      } catch (e) {
+        console.error('Failed to save game:', e);
+      }
+    }
+
+    /**
+     * ============================================================================
+     * 3. WEB AUDIO API PROCEDURAL SOUND ENGINE
+     * ============================================================================
+     */
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playTone(freq, type = 'sine', duration = 0.15, vol = 0.3, slideFreq = null, delay = 0) {
+        if (!gameState.settings.sfxEnabled) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime + delay;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+        if (slideFreq) {
+          osc.frequency.exponentialRampToValueAtTime(slideFreq, now + duration);
+        }
+
+        const masterVol = gameState.settings.sfxVolume * vol;
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(masterVol, now + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + duration + 0.02);
+      }
+
+      playTick(step) {
+        this.playTone(260 + step * 35, 'triangle', 0.06, 0.2);
+      }
+
+      playPullResult(rarityOrder) {
+        if (rarityOrder <= 2) {
+          this.playTone(523.25, 'sine', 0.18, 0.25);
+          this.playTone(659.25, 'sine', 0.25, 0.25, null, 0.06);
+        } else if (rarityOrder <= 4) {
+          [523.25, 659.25, 783.99, 1046.5].forEach((n, idx) => {
+            this.playTone(n, 'triangle', 0.28, 0.3, null, idx * 0.055);
+          });
+        } else if (rarityOrder === 5) {
+          this.playTone(130.81, 'sawtooth', 0.6, 0.35, 65.4);
+          [440, 554.37, 659.25, 880].forEach((n, i) => {
+            this.playTone(n, 'triangle', 0.45, 0.32, null, i * 0.07);
+          });
+        } else {
+          this.playTone(110, 'sawtooth', 1.1, 0.45, 55);
+          this.playTone(220, 'square', 0.9, 0.25);
+          [523.25, 659.25, 783.99, 987.77, 1046.5, 1318.5, 1567.98].forEach((n, i) => {
+            this.playTone(n, 'sine', 0.85, 0.35, null, 0.1 + i * 0.08);
+          });
+        }
+      }
+
+      playClick() {
+        this.playTone(680, 'sine', 0.05, 0.15);
+      }
+
+      playPotion() {
+        this.playTone(400, 'sine', 0.25, 0.3, 920);
+        this.playTone(600, 'triangle', 0.3, 0.25, 1200, 0.08);
+      }
+    }
+
+    const sfx = new SoundEngine();
+
+    /**
+     * ============================================================================
+     * 4. LUCK CALCULATION & EXACT 8-RARITY WEIGHTED RNG SYSTEM
+     * ============================================================================
+     */
+    function formatNumber(num) {
+      if (num >= 1e15) return (num / 1e15).toFixed(2) + 'Qa';
+      if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
+      if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+      if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+      if (num >= 10000) return Math.round(num).toLocaleString('en-US');
+      if (Number.isInteger(num)) return num.toLocaleString('en-US');
+      return num.toFixed(2);
+    }
+
+    function formatPercentBonus(pct) {
+      if (pct >= 10000) return Math.round(pct).toLocaleString('en-US') + '%';
+      return pct.toFixed(1).replace(/\.0$/, '') + '%';
+    }
+
+    function formatProbPercent(p) {
+      if (p >= 1) return p.toFixed(6).replace(/0+$/, '').replace(/\.$/, '') + '%';
+      if (p >= 0.0001) return p.toFixed(8).replace(/0+$/, '').replace(/\.$/, '') + '%';
+      if (p >= 1e-14) return p.toFixed(16).replace(/0+$/, '').replace(/\.$/, '') + '%';
+      return p.toExponential(3) + '%';
+    }
+
+    function calculateLuckBreakdown() {
+      const items = [];
+      let mult = 1.0;
+
+      items.push({ label: '基本倍率 (Base)', value: '1.00x' });
+
+      const eqAura = getAuraByNo(gameState.equippedAuraNo);
+      if (eqAura && eqAura.luckBonus > 0) {
+        const auraMult = 1 + eqAura.luckBonus;
+        mult *= auraMult;
+        items.push({ label: `装備 No.${eqAura.no} ${eqAura.name}`, value: `×${formatNumber(auraMult)}` });
+      }
+
+      let charmAdditive = 0;
+      CHARMS.forEach(c => {
+        const lvl = gameState.charms[c.id] || 0;
+        if (lvl > 0) charmAdditive += lvl * c.luckPerLevel;
+      });
+      if (charmAdditive > 0) {
+        const charmMult = 1 + charmAdditive;
+        mult *= charmMult;
+        items.push({ label: '錬金チャーム強化', value: `×${formatNumber(charmMult)}` });
+      }
+
+      let achAdditive = 0;
+      ACHIEVEMENTS.forEach(a => {
+        if (gameState.achievements[a.id]) achAdditive += a.luckBonus;
+      });
+      if (achAdditive > 0) {
+        const achMult = 1 + achAdditive;
+        mult *= achMult;
+        items.push({ label: '実績ボーナス', value: `×${formatNumber(achMult)}` });
+      }
+
+      if (currentWeather.luckMult !== 1.0) {
+        mult *= currentWeather.luckMult;
+        items.push({ label: `確率変動 (${currentWeather.icon})`, value: `×${formatNumber(currentWeather.luckMult)}` });
+      }
+
+      const now = Date.now();
+      gameState.activeTimedPotions = gameState.activeTimedPotions.filter(p => p.expiresAt > now);
+      gameState.activeTimedPotions.forEach(p => {
+        mult *= p.luckMult;
+        items.push({ label: `${p.name}`, value: `×${formatNumber(p.luckMult)}` });
+      });
+
+      if (gameState.nextRollBoosts && gameState.nextRollBoosts.length > 0) {
+        gameState.nextRollBoosts.forEach(b => {
+          mult *= b.luckMult;
+          items.push({ label: `[次ロール] ${b.name}`, value: `×${formatNumber(b.luckMult)}` });
+        });
+      }
+
+      const isPulseRoll = ((gameState.stats.rollStreak + 1) % 10 === 0);
+      if (isPulseRoll) {
+        mult *= 2.0;
+        items.push({ label: '⚡ 10連目・幸運の拍動', value: '×2.00' });
+      }
+
+      return { totalLuck: mult, items, isPulseRoll };
+    }
+
+    /**
+     * 確率エンジン (バランス調整版)
+     * ・Luckは Luck^0.4 に圧縮して効かせる (Luckが何千倍でも一気に最レアにはならない)
+     * ・実効Luckの上限は 100 (= Luck約32万倍で頭打ち)
+     * ・最高希少度(S)は上限Luckでも約 1 / 100万 前後、Mythicalは数万分の1程度
+     */
+    const LUCK_EXPONENT = 0.4;
+    const LUCK_EFFECT_CAP = 100;
+    function getEffectiveRarityWeights(effectiveLuck) {
+      const eff = effectiveLuck <= 1 ? 1 : Math.min(LUCK_EFFECT_CAP, Math.pow(effectiveLuck, LUCK_EXPONENT));
+      const weights = {};
+      let totalWeight = 0;
+      RARITY_ORDER_LIST.forEach(code => {
+        const r = RARITIES[code];
+        const w = (code === 'C') ? r.baseWeight : r.baseWeight * Math.pow(eff, r.tierPower);
+        weights[code] = w;
+        totalWeight += w;
+      });
+      return { weights, totalWeight };
+    }
+
+    function rollSingleAura(effectiveLuck) {
+      const { weights, totalWeight } = getEffectiveRarityWeights(effectiveLuck);
+      const u = Math.random();
+
+      // Check from rarest (S) down to Common (C) for high floating-point precision on 1e-13 weights
+      const rarestFirst = ['S', 'M', 'L', 'E', 'L7', 'R', 'U', 'C'];
+      let cumProb = 0;
+      let chosenRarityCode = 'C';
+
+      for (const code of rarestFirst) {
+        cumProb += weights[code] / totalWeight;
+        if (u < cumProb) {
+          chosenRarityCode = code;
+          break;
+        }
+      }
+
+      const pool = AURAS_BY_RARITY[chosenRarityCode];
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    /**
+     * ============================================================================
+     * 5. GACHA EXECUTION (1X & 10X), CUTSCENES & FLASH EFFECTS
+     * ============================================================================
+     */
+    function triggerRoll(count = 1) {
+      if (isRolling) return;
+      isRolling = true;
+
+      document.getElementById('rollBtn').disabled = true;
+      document.getElementById('multiRollBtn').disabled = true;
+
+      const tickerBox = document.getElementById('rollTickerBox');
+      const tickerRarity = document.getElementById('tickerRarity');
+      const tickerName = document.getElementById('tickerName');
+      const tickerProb = document.getElementById('tickerProb');
+
+      tickerBox.classList.remove('hidden');
+      tickerBox.classList.add('flex');
+
+      const spinSteps = gameState.settings.fastRoll ? 4 : 10;
+      const stepDelay = gameState.settings.fastRoll ? 32 : 50;
+      let step = 0;
+
+      const spinInterval = setInterval(() => {
+        step++;
+        const randomPreview = AURAS[Math.floor(Math.random() * AURAS.length)];
+        const rInfo = RARITIES[randomPreview.rarity];
+        tickerRarity.textContent = count > 1
+          ? `10X SUMMONING... (${step}/${spinSteps})`
+          : `[${rInfo.code}] ${rInfo.enName} // ${rInfo.jpName}`;
+        tickerRarity.style.color = rInfo.color;
+        tickerName.textContent = `No.${randomPreview.no} ${randomPreview.name}`;
+        tickerProb.textContent = `${formatProbPercent(randomPreview.baseProbPercent)} (1 in ${formatNumber(randomPreview.oneIn)})`;
+
+        sfx.playTick(step);
+
+        if (step >= spinSteps) {
+          clearInterval(spinInterval);
+          tickerBox.classList.add('hidden');
+          tickerBox.classList.remove('flex');
+          executeBatchRolls(count);
+        }
+      }, stepDelay);
+    }
+
+    function executeBatchRolls(count) {
+      const results = [];
+      let totalAetherConverted = 0;
+
+      for (let i = 0; i < count; i++) {
+        const { totalLuck } = calculateLuckBreakdown();
+        if (gameState.nextRollBoosts.length > 0) {
+          gameState.nextRollBoosts = [];
+        }
+
+        const wonAura = rollSingleAura(totalLuck);
+        const rarityObj = RARITIES[wonAura.rarity];
+        const isNew = !gameState.discovered[wonAura.no];
+
+        gameState.discovered[wonAura.no] = (gameState.discovered[wonAura.no] || 0) + 1;
+        gameState.stats.totalRolls += 1;
+        gameState.stats.rollStreak += 1;
+        gameState.stats.rarityCounts[wonAura.rarity] = (gameState.stats.rarityCounts[wonAura.rarity] || 0) + 1;
+
+        if (rarityObj.order > gameState.stats.highestOrder) {
+          gameState.stats.highestOrder = rarityObj.order;
+          gameState.stats.highestAuraNo = wonAura.no;
+        }
+
+        let converted = false;
+        let gainedAether = 0;
+        const alreadyOwned = (gameState.inventory[wonAura.no] || 0) > 0;
+        const isLocked = !!gameState.lockedAuras[wonAura.no];
+        const shouldAutoConvert =
+          alreadyOwned &&
+          !isLocked &&
+          gameState.settings.autoConvertBelowOrder > 0 &&
+          rarityObj.order <= gameState.settings.autoConvertBelowOrder;
+
+        if (shouldAutoConvert) {
+          converted = true;
+          gainedAether = rarityObj.aetherValue;
+          gameState.aether += gainedAether;
+          gameState.stats.totalAetherEarned += gainedAether;
+          totalAetherConverted += gainedAether;
+        } else {
+          gameState.inventory[wonAura.no] = (gameState.inventory[wonAura.no] || 0) + 1;
+          const currentEq = getAuraByNo(gameState.equippedAuraNo);
+          if (gameState.settings.autoEquipBetter && rarityObj.order > RARITIES[currentEq.rarity].order) {
+            gameState.equippedAuraNo = wonAura.no;
+            gameState.lockedAuras[wonAura.no] = true;
+          }
+        }
+
+        updateQuestProgress(wonAura);
+        results.push({ aura: wonAura, isNew, converted, gainedAether });
+      }
+
+      checkAchievements();
+
+      // Best result in this roll / batch
+      const topResult = results.reduce((prev, curr) =>
+        RARITIES[curr.aura.rarity].order >= RARITIES[prev.aura.rarity].order ? curr : prev
+      );
+      const topAura = topResult.aura;
+      const topRarity = RARITIES[topAura.rarity];
+
+      // Refresh background aura particles cleanly
+      syncAuraParticlePool(true);
+      spawnBurstParticles(topAura.color, Math.min(120, topRarity.order * 20));
+      triggerPullFlash(topAura.color, topRarity.order);
+      sfx.playPullResult(topRarity.order);
+
+      // Update Last Result Toast
+      const banner = document.getElementById('lastResultBanner');
+      const newBadge = document.getElementById('lastResultNewBadge');
+      const nameEl = document.getElementById('lastResultName');
+      const probEl = document.getElementById('lastResultProb');
+      const actEl = document.getElementById('lastResultAction');
+
+      newBadge.classList.toggle('hidden', !topResult.isNew);
+      nameEl.textContent = count > 1
+        ? `[10連最高] No.${topAura.no} ${topAura.name} (${topRarity.code})`
+        : `No.${topAura.no} ${topAura.name} (${topRarity.code})`;
+      nameEl.style.color = topRarity.color;
+      probEl.textContent = `[${formatProbPercent(topAura.baseProbPercent)} | 1 in ${formatNumber(topAura.oneIn)}]`;
+      actEl.textContent = totalAetherConverted > 0 ? `[自動分解 +${formatNumber(totalAetherConverted)}💠]` : '';
+
+      banner.classList.remove('opacity-0', 'translate-y-2');
+      banner.classList.add('opacity-100', 'translate-y-0');
+
+      if (count > 1) {
+        showMultiRollModal(results, totalAetherConverted);
+      }
+
+      if (topRarity.order >= gameState.settings.cutsceneThreshold) {
+        showCutscene(topAura);
+      } else if (topRarity.order >= 4) {
+        triggerScreenShake();
+      }
+
+      isRolling = false;
+      document.getElementById('rollBtn').disabled = false;
+      document.getElementById('multiRollBtn').disabled = false;
+      saveGame();
+      updateAllUI();
+
+      if (
+        autoRollEnabled &&
+        document.getElementById('cutsceneOverlay').classList.contains('hidden') &&
+        document.getElementById('multiRollModal').classList.contains('hidden')
+      ) {
+        scheduleNextAutoRoll();
+      }
+    }
+
+    function spawnShockwave(color, order) {
+      const cx = width * 0.5, cy = auraCy;
+      for (let i = 0; i < Math.min(5, order); i++) {
+        burstParticles.push({ ring: true, x: cx, y: cy, vx: 0, vy: 0, life: 1 + i * 0.22, decay: 0.014, max: 240 + i * 70, size: 0, color });
+      }
+    }
+
+    function triggerPullFlash(color, order) {
+      spawnShockwave(color, order);
+      const flash = document.getElementById('pullFlashOverlay');
+      flash.style.background = `radial-gradient(circle at 50% 44%, ${color}88 0%, transparent 72%)`;
+      flash.style.opacity = order >= 4 ? '0.85' : '0.42';
+      setTimeout(() => {
+        flash.style.opacity = '0';
+      }, 260);
+    }
+
+    function triggerScreenShake() {
+      const appEl = document.getElementById('app');
+      appEl.classList.remove('shake-active');
+      void appEl.offsetWidth;
+      appEl.classList.add('shake-active');
+    }
+
+    function showMultiRollModal(results, totalAetherConverted) {
+      const modal = document.getElementById('multiRollModal');
+      const grid = document.getElementById('multiRollGrid');
+      const badge = document.getElementById('multiRollSummaryBadge');
+
+      badge.textContent = totalAetherConverted > 0 ? `自動変換獲得: +${formatNumber(totalAetherConverted)}💠` : '10連完了';
+
+      grid.innerHTML = results.map(res => {
+        const a = res.aura;
+        const r = RARITIES[a.rarity];
+        return `
+          <div class="glass-card rounded-2xl p-2.5 flex flex-col justify-between text-center border ${r.order >= 4 ? 'border-amber-400/60 shadow-lg' : 'border-white/10'}">
+            <div>
+              <div class="flex items-center justify-center gap-1 mb-1">
+                <span class="font-mono-num text-[10px] text-slate-200">#${a.no}</span>
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-display font-bold border ${r.bgClass}">${r.code}</span>
+                ${res.isNew ? '<span class="px-1 py-0.5 rounded bg-amber-400 text-slate-950 font-black text-[8px]">NEW</span>' : ''}
+              </div>
+              <div class="font-display font-bold text-xs sm:text-sm truncate" style="color: ${a.color}">${a.name}</div>
+              <div class="text-[11px] text-slate-200 mt-0.5">${a.patternName}</div>
+              <div class="font-mono-num text-[10px] text-slate-100 mt-0.5">${formatProbPercent(a.baseProbPercent)}</div>
+            </div>
+            <div class="mt-2 pt-1.5 border-t border-white/10">
+              ${res.converted
+                ? `<span class="text-[11px] font-mono-num text-cyan-300">+${res.gainedAether}💠</span>`
+                : `<button onclick="equipAuraFromModal(${a.no})" class="w-full py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-bold text-white cursor-pointer">装備する</button>`
+              }
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      modal.classList.remove('hidden');
+    }
+
+    function equipAuraFromModal(auraNo) {
+      equipAura(auraNo);
+      showToast(`✨ 「No.${auraNo} ${getAuraByNo(auraNo).name}」を装備しました！`);
+    }
+
+    function closeMultiRollModal() {
+      sfx.playClick();
+      document.getElementById('multiRollModal').classList.add('hidden');
+      if (autoRollEnabled && document.getElementById('cutsceneOverlay').classList.contains('hidden')) {
+        scheduleNextAutoRoll();
+      }
+    }
+
+    function showCutscene(aura) {
+      triggerScreenShake();
+      const overlay = document.getElementById('cutsceneOverlay');
+      const rarityObj = RARITIES[aura.rarity];
+
+      document.getElementById('cutsceneRarityLabel').textContent = `[${rarityObj.code}] ${rarityObj.enName} // ${rarityObj.jpName}`;
+      document.getElementById('cutsceneRarityLabel').style.color = rarityObj.color;
+
+      const titleEl = document.getElementById('cutsceneAuraTitle');
+      titleEl.textContent = `No.${aura.no} ${aura.name}`;
+      titleEl.className = `font-display text-3xl sm:text-5xl font-black tracking-wider mb-2 ${
+        aura.rarity === 'S' ? 'text-rainbow animate-glitch' : aura.rarity === 'L7' ? 'text-rainbow' : 'text-white'
+      }`;
+
+      document.getElementById('cutsceneProbText').textContent = `${formatProbPercent(aura.baseProbPercent)}  (1 in ${formatNumber(aura.oneIn)})`;
+      document.getElementById('cutsceneDescText').textContent = `演出パターン: ${aura.patternName} / 追加演出: ${aura.extraName} / 粒子数: ${aura.particles}`;
+
+      const starSvg = document.getElementById('cutsceneStarSvg');
+      starSvg.style.color = aura.color;
+      starSvg.style.filter = `drop-shadow(0 0 40px ${aura.color})`;
+
+      document.getElementById('cutsceneRingOuter').style.borderColor = aura.color;
+
+      overlay.classList.remove('hidden');
+    }
+
+    function closeCutscene() {
+      sfx.playClick();
+      document.getElementById('cutsceneOverlay').classList.add('hidden');
+      if (autoRollEnabled && document.getElementById('multiRollModal').classList.contains('hidden')) {
+        scheduleNextAutoRoll();
+      }
+    }
+
+    function toggleAutoRoll() {
+      sfx.playClick();
+      autoRollEnabled = !autoRollEnabled;
+      const btn = document.getElementById('autoRollBtn');
+      const txt = document.getElementById('autoRollStateText');
+
+      if (autoRollEnabled) {
+        txt.textContent = 'ON';
+        txt.className = 'font-bold text-emerald-400';
+        btn.classList.add('border-emerald-400/60', 'bg-emerald-950/40');
+        if (!isRolling) triggerRoll(1);
+      } else {
+        txt.textContent = 'OFF';
+        txt.className = 'font-bold text-slate-100';
+        btn.classList.remove('border-emerald-400/60', 'bg-emerald-950/40');
+        clearTimeout(autoRollTimer);
+      }
+    }
+
+    function scheduleNextAutoRoll() {
+      clearTimeout(autoRollTimer);
+      if (!autoRollEnabled) return;
+      const delay = gameState.settings.fastRoll ? 150 : 360;
+      autoRollTimer = setTimeout(() => {
+        if (autoRollEnabled && !isRolling) {
+          triggerRoll(1);
+        }
+      }, delay);
+    }
+
+    /**
+     * ============================================================================
+     * 6. QUESTS, ACHIEVEMENTS, ALCHEMY, INVENTORY & TRY-ON PREVIEW ACTIONS
+     * ============================================================================
+     */
+    function generateNextQuest(prevId) {
+      const templates = [
+        { type: 'roll', title: 'オーラ抽選を20回行う', target: 20, rewardAether: 180, rewardPotion: 'minor_luck' },
+        { type: 'uncommon_plus', title: 'Uncommon (U) 以上のオーラを5回獲得する', target: 5, rewardAether: 260, rewardPotion: 'minor_luck' },
+        { type: 'rare_plus', title: 'Rare (R) 以上のオーラを3回獲得する', target: 3, rewardAether: 480, rewardPotion: 'fortune_potion' },
+        { type: 'l7_plus', title: 'Lucky 7 (L7) 以上のオーラを2回獲得する', target: 2, rewardAether: 700, rewardPotion: 'fortune_potion' },
+        { type: 'roll', title: 'オーラ抽選を50回行う', target: 50, rewardAether: 650, rewardPotion: 'weather_caller' }
+      ];
+      const pick = templates[prevId % templates.length];
+      return { id: prevId + 1, ...pick, progress: 0 };
+    }
+
+    function updateQuestProgress(wonAura) {
+      const q = gameState.quest;
+      if (!q || q.progress >= q.target) return;
+      const order = RARITIES[wonAura.rarity].order;
+
+      if (q.type === 'roll') q.progress++;
+      else if (q.type === 'uncommon_plus' && order >= 2) q.progress++;
+      else if (q.type === 'rare_plus' && order >= 3) q.progress++;
+      else if (q.type === 'l7_plus' && order >= 4) q.progress++;
+
+      if (q.progress >= q.target) {
+        q.progress = q.target;
+        document.getElementById('questBadgeDot').classList.remove('hidden');
+        showToast('🎯 クエスト達成！「目標・実績」から報酬を受け取れます');
+      }
+    }
+
+    function claimQuestReward() {
+      const q = gameState.quest;
+      if (q.progress < q.target) return;
+      sfx.playPotion();
+      gameState.aether += q.rewardAether;
+      gameState.stats.totalAetherEarned += q.rewardAether;
+      if (q.rewardPotion) {
+        gameState.potions[q.rewardPotion] = (gameState.potions[q.rewardPotion] || 0) + 1;
+      }
+      showToast(`🎁 報酬獲得: +${q.rewardAether}💠 & ポーション!`);
+      gameState.quest = generateNextQuest(q.id);
+      document.getElementById('questBadgeDot').classList.add('hidden');
+      saveGame();
+      updateAllUI();
+      if (currentTab === 'quests') renderTabContent('quests');
+    }
+
+    function checkAchievements() {
+      let unlockedAny = false;
+      ACHIEVEMENTS.forEach(ach => {
+        if (!gameState.achievements[ach.id] && ach.check(gameState)) {
+          gameState.achievements[ach.id] = true;
+          unlockedAny = true;
+          showToast(`🏆 実績解除: 「${ach.name}」 (永続Luck +${Math.round(ach.luckBonus * 100)}%)`);
+        }
+      });
+      if (unlockedAny) saveGame();
+    }
+
+    function equipAura(auraNo) {
+      const no = Number(auraNo);
+      if (!gameState.inventory[no]) return;
+      sfx.playClick();
+      gameState.equippedAuraNo = no;
+      syncAuraParticlePool(true);
+      spawnBurstParticles(getAuraByNo(no).color, 36);
+      saveGame();
+      updateAllUI();
+      if (currentTab === 'inventory') renderTabContent('inventory');
+    }
+
+    function toggleLockAura(auraNo) {
+      const no = Number(auraNo);
+      sfx.playClick();
+      gameState.lockedAuras[no] = !gameState.lockedAuras[no];
+      saveGame();
+      if (currentTab === 'inventory') renderTabContent('inventory');
+    }
+
+    function convertDuplicateAuras(specificAuraNo = null) {
+      let totalGained = 0;
+      let totalConverted = 0;
+
+      const nos = specificAuraNo ? [Number(specificAuraNo)] : Object.keys(gameState.inventory).map(Number);
+      nos.forEach(no => {
+        const count = gameState.inventory[no] || 0;
+        if (count > 1) {
+          const toConvert = count - 1;
+          const aura = getAuraByNo(no);
+          const val = RARITIES[aura.rarity].aetherValue * toConvert;
+          gameState.inventory[no] = 1;
+          totalGained += val;
+          totalConverted += toConvert;
+        }
+      });
+
+      if (totalConverted > 0) {
+        sfx.playPotion();
+        gameState.aether += totalGained;
+        gameState.stats.totalAetherEarned += totalGained;
+        showToast(`💠 ${totalConverted}個の重複オーラを ${formatNumber(totalGained)} エーテルに変換！`);
+        saveGame();
+        updateAllUI();
+        if (currentTab === 'inventory') renderTabContent('inventory');
+      } else {
+        showToast('変換可能な重複オーラがありません（各1個は保護されます）');
+      }
+    }
+
+    function craftPotion(potionId) {
+      const pot = POTIONS.find(p => p.id === potionId);
+      if (!pot) return;
+      if (gameState.aether < pot.cost) {
+        showToast('⚠️ エーテル結晶が不足しています！');
+        return;
+      }
+      sfx.playPotion();
+      gameState.aether -= pot.cost;
+      gameState.stats.totalAetherSpent = (gameState.stats.totalAetherSpent || 0) + pot.cost;
+      gameState.potions[potionId] = (gameState.potions[potionId] || 0) + 1;
+      showToast(`🧪 「${pot.name}」を錬成しました！`);
+      saveGame();
+      updateAllUI();
+      if (currentTab === 'inventory') renderTabContent('inventory');
+    }
+
+    function usePotion(potionId) {
+      const count = gameState.potions[potionId] || 0;
+      if (count <= 0) return;
+      const pot = POTIONS.find(p => p.id === potionId);
+      if (!pot) return;
+
+      sfx.playPotion();
+      gameState.potions[potionId] = count - 1;
+
+      if (pot.type === 'timed') {
+        const existing = gameState.activeTimedPotions.find(p => p.id === pot.id);
+        if (existing) {
+          existing.expiresAt += pot.duration * 1000;
+        } else {
+          gameState.activeTimedPotions.push({
+            id: pot.id,
+            name: pot.name,
+            luckMult: pot.luckMult,
+            expiresAt: Date.now() + pot.duration * 1000
+          });
+        }
+        showToast(`✨ ${pot.name}を使用！ (${pot.luckMult}x Luck)`);
+      } else if (pot.type === 'next_roll') {
+        gameState.nextRollBoosts.push({
+          id: pot.id,
+          name: pot.name,
+          luckMult: pot.luckMult
+        });
+        showToast(`🔥 ${pot.name}をチャージ！次の1ロールが ${formatNumber(pot.luckMult)}x Luck！`);
+      } else if (pot.type === 'trigger_weather') {
+        const specialWeathers = WEATHER_EVENTS.filter(w => w.id !== 'normal');
+        const chosen = specialWeathers[Math.floor(Math.random() * specialWeathers.length)];
+        setWeatherEvent(chosen);
+        showToast(`📡 次元干渉成功！確率変動「${chosen.name}」が発生！`);
+      }
+
+      saveGame();
+      updateAllUI();
+      if (currentTab === 'inventory') renderTabContent('inventory');
+    }
+
+    function triggerManualWeather() {
+      if ((gameState.potions.weather_caller || 0) > 0) {
+        usePotion('weather_caller');
+        return;
+      }
+      if (gameState.aether < 1200) {
+        showToast('⚠️ 確率変動の干渉には 1,200💠 または次元干渉装置が必要です');
+        return;
+      }
+      sfx.playPotion();
+      gameState.aether -= 1200;
+      gameState.stats.totalAetherSpent = (gameState.stats.totalAetherSpent || 0) + 1200;
+      const specialWeathers = WEATHER_EVENTS.filter(w => w.id !== 'normal');
+      const chosen = specialWeathers[Math.floor(Math.random() * specialWeathers.length)];
+      setWeatherEvent(chosen);
+      showToast(`📡 エーテル干渉成功！確率変動「${chosen.name}」が発生！`);
+      saveGame();
+      updateAllUI();
+    }
+
+    function upgradeCharm(charmId) {
+      const charm = CHARMS.find(c => c.id === charmId);
+      if (!charm) return;
+      const lvl = gameState.charms[charmId] || 0;
+      if (lvl >= charm.maxLevel) return;
+      const cost = Math.floor(charm.baseCost * Math.pow(charm.costScale, lvl));
+      if (gameState.aether < cost) {
+        showToast('⚠️ エーテル結晶が不足しています！');
+        return;
+      }
+      sfx.playPotion();
+      gameState.aether -= cost;
+      gameState.stats.totalAetherSpent = (gameState.stats.totalAetherSpent || 0) + cost;
+      gameState.charms[charmId] = lvl + 1;
+      showToast(`✨ 「${charm.name}」が Lv.${lvl + 1} に強化されました！`);
+      saveGame();
+      updateAllUI();
+      if (currentTab === 'inventory') renderTabContent('inventory');
+    }
+
+    /**
+     * ============================================================================
+     * 7. WEATHER / PROBABILITY FLUCTUATION LOOP
+     * ============================================================================
+     */
+    function setWeatherEvent(weatherObj) {
+      currentWeather = weatherObj;
+      weatherRemainingSec = weatherObj.duration;
+      updateWeatherUI();
+    }
+
+    function tickWeatherAndTimers() {
+      gameState.stats.playTimeSec += 1;
+
+      weatherRemainingSec -= 1;
+      if (weatherRemainingSec <= 0) {
+        const r = Math.random();
+        let nextW = WEATHER_EVENTS[0];
+        if (r < 0.42) nextW = WEATHER_EVENTS[0];
+        else if (r < 0.72) nextW = WEATHER_EVENTS[1];
+        else if (r < 0.90) nextW = WEATHER_EVENTS[2];
+        else if (r < 0.98) nextW = WEATHER_EVENTS[3];
+        else nextW = WEATHER_EVENTS[4];
+
+        setWeatherEvent(nextW);
+        if (nextW.id !== 'normal') {
+          showToast(`${nextW.icon} 確率変動発生: ${nextW.name} (Luck ×${formatNumber(nextW.luckMult)})`);
+        }
+      }
+
+      updateWeatherUI();
+      updateActivePotionsUI();
+      updateLuckUI();
+    }
+
+    function updateWeatherUI() {
+      const card = document.getElementById('weatherCard');
+      card.className = `glass-panel rounded-xl px-3 py-2 flex items-center gap-2.5 border-l-4 ${currentWeather.borderClass}`;
+      document.getElementById('weatherIcon').textContent = currentWeather.icon;
+      document.getElementById('weatherName').textContent = currentWeather.name;
+      document.getElementById('weatherTimer').textContent = `${weatherRemainingSec}s`;
+
+      const badge = document.getElementById('weatherMultBadge');
+      badge.textContent = `×${formatNumber(currentWeather.luckMult)}`;
+      badge.style.color = currentWeather.color;
+
+      const pct = Math.max(0, Math.min(100, (weatherRemainingSec / currentWeather.duration) * 100));
+      const bar = document.getElementById('weatherProgress');
+      bar.style.width = `${pct}%`;
+      bar.style.backgroundColor = currentWeather.color;
+    }
+
+    function updateActivePotionsUI() {
+      const container = document.getElementById('activePotionsBar');
+      const now = Date.now();
+      gameState.activeTimedPotions = gameState.activeTimedPotions.filter(p => p.expiresAt > now);
+
+      let html = '';
+      gameState.activeTimedPotions.forEach(p => {
+        const rem = Math.ceil((p.expiresAt - now) / 1000);
+        html += `<span class="glass-panel px-2 py-0.5 rounded-lg text-[11px] font-mono-num text-emerald-300 border border-emerald-400/35">🧪 ${p.luckMult}x (${rem}s)</span>`;
+      });
+      gameState.nextRollBoosts.forEach(b => {
+        html += `<span class="glass-panel px-2 py-0.5 rounded-lg text-[11px] font-mono-num text-amber-300 border border-amber-400/55 animate-pulse">🔥 次回 ${formatNumber(b.luckMult)}x</span>`;
+      });
+      container.innerHTML = html;
+    }
+
+    /**
+     * ============================================================================
+     * 8. UI & NAVIGATION DRAWER RENDERING (300-AURA COLLECTION, STATS TABLE, ETC.)
+     * ============================================================================
+     */
+    function toggleLuckTooltip() {
+      document.getElementById('luckTooltip').classList.toggle('hidden');
+    }
+
+    function updateLuckUI() {
+      const { totalLuck, items } = calculateLuckBreakdown();
+      const formatted = `${formatNumber(totalLuck)}x`;
+      document.getElementById('hudTotalLuck').textContent = formatted;
+      document.getElementById('tooltipLuckTotal').textContent = formatted;
+
+      const listEl = document.getElementById('luckBreakdownList');
+      listEl.innerHTML = items.map(it => `
+        <div class="flex justify-between">
+          <span class="text-slate-100">${it.label}</span>
+          <span class="text-amber-300 font-bold">${it.value}</span>
+        </div>
+      `).join('');
+    }
+
+    // 上下パネルの開閉 (オーラ表示を広げる)
+    function applyUiCollapse() {
+      const st = gameState.settings, tb = document.getElementById('toggleTopBtn'), bb = document.getElementById('toggleBottomBtn');
+      document.body.classList.toggle('top-collapsed', !!st.uiTopCollapsed);
+      document.body.classList.toggle('bottom-collapsed', !!st.uiBottomCollapsed);
+      if (tb) tb.textContent = st.uiTopCollapsed ? '▼' : '▲';
+      if (bb) bb.textContent = st.uiBottomCollapsed ? '▲ メニューを開く' : '▼ 隠してオーラを大きく';
+    }
+    function toggleTopBar() { gameState.settings.uiTopCollapsed = !gameState.settings.uiTopCollapsed; applyUiCollapse(); saveGame(); }
+    function toggleBottomBar() { gameState.settings.uiBottomCollapsed = !gameState.settings.uiBottomCollapsed; applyUiCollapse(); saveGame(); }
+
+    function updateAllUI() {
+      applyUiCollapse();
+      const discoveredCount = Object.keys(gameState.discovered).length;
+      document.getElementById('hudTotalRolls').textContent = formatNumber(gameState.stats.totalRolls);
+      document.getElementById('hudDexCount').textContent = `${discoveredCount}/${AURAS.length}`;
+      document.getElementById('hudAether').textContent = formatNumber(gameState.aether);
+      document.getElementById('streakPill').textContent = `${gameState.stats.rollStreak % 10}/10`;
+
+      const aura = getCurrentDisplayAura();
+      const rarityObj = RARITIES[aura.rarity];
+
+      document.getElementById('stageNoBadge').textContent = `No.${aura.no}`;
+
+      const rBadge = document.getElementById('stageRarityBadge');
+      rBadge.textContent = `[${rarityObj.code}] ${rarityObj.enName} // ${rarityObj.jpName}`;
+      rBadge.className = `px-2.5 py-0.5 rounded-full text-[12px] font-display font-bold tracking-wider uppercase border ${rarityObj.bgClass}`;
+
+      document.getElementById('stageProbBadge').textContent = `${formatProbPercent(aura.baseProbPercent)} (1 in ${formatNumber(aura.oneIn)})`;
+
+      const nameEl = document.getElementById('stageAuraName');
+      nameEl.textContent = aura.name;
+      nameEl.style.color = (aura.rarity === 'S' || aura.rarity === 'L7') ? '' : aura.color;
+      nameEl.className = `font-display text-2xl sm:text-4xl font-black tracking-wide mt-1 ${
+        aura.rarity === 'S' ? 'text-rainbow animate-glitch' : aura.rarity === 'L7' ? 'text-rainbow' : ''
+      }`;
+
+      document.getElementById('stagePatternTag').textContent = `演出: ${aura.patternName}`;
+      document.getElementById('stageExtraTag').textContent = `追加: ${aura.extraName}`;
+      document.getElementById('stageParticleTag').textContent = `粒子: ${aura.particles}`;
+      document.getElementById('stageAuraPerk').textContent = aura.perkText;
+
+      const quickBar = document.getElementById('quickPotionSlots');
+      quickBar.innerHTML = POTIONS.map(p => {
+        const cnt = gameState.potions[p.id] || 0;
+        return `
+          <button onclick="usePotion('${p.id}')" ${cnt <= 0 ? 'disabled' : ''} class="px-2 py-1 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer ${cnt > 0 ? 'bg-white/15 hover:bg-white/25 text-white border border-white/20' : 'bg-white/5 text-slate-300 opacity-50 cursor-not-allowed'}" title="${p.desc}">
+            <span>${p.icon}</span>
+            <span class="hidden sm:inline text-[12px]">${p.name}</span>
+            <span class="font-mono-num text-[12px] text-cyan-300">×${cnt}</span>
+          </button>
+        `;
+      }).join('');
+
+      updateLuckUI();
+      updateActivePotionsUI();
+    }
+
+    function openTab(tabName) {
+      sfx.playClick();
+      if (currentTab === tabName) {
+        closeTab();
+        return;
+      }
+      currentTab = tabName;
+
+      const meta = {
+        collection: { icon: '📖', title: 'オーラ図鑑 (全400種カタログ)' },
+        inventory: { icon: '🎒', title: '所持品管理 & エーテル錬金' },
+        stats: { icon: '📊', title: 'プレイ統計 & 全8希少度確率表' },
+        quests: { icon: '🏆', title: '達成目標 (Quests) & 実績 (Achievements)' },
+        settings: { icon: '⚙️', title: '表示・操作・JSONセーブ設定' }
+      }[tabName];
+
+      document.getElementById('drawerIcon').textContent = meta.icon;
+      document.getElementById('drawerTitle').textContent = meta.title;
+
+      document.querySelectorAll('.nav-tab-btn').forEach(btn => {
+        if (btn.dataset.tab === tabName) {
+          btn.classList.add('bg-purple-600/45', 'text-white', 'border', 'border-purple-400/50');
+        } else {
+          btn.classList.remove('bg-purple-600/45', 'text-white', 'border', 'border-purple-400/50');
+        }
+      });
+
+      renderTabContent(tabName);
+      document.getElementById('drawerBackdrop').classList.remove('hidden');
+      document.getElementById('tabDrawer').classList.remove('hidden');
+    }
+
+    function closeTab() {
+      currentTab = null;
+      document.getElementById('drawerBackdrop').classList.add('hidden');
+      document.getElementById('tabDrawer').classList.add('hidden');
+      document.querySelectorAll('.nav-tab-btn').forEach(btn => {
+        btn.classList.remove('bg-purple-600/45', 'text-white', 'border', 'border-purple-400/50');
+      });
+    }
+
+    function setDexRarityFilter(code) {
+      sfx.playClick();
+      dexFilterRarity = code;
+      renderTabContent('collection');
+    }
+
+    function setDexPatternFilter(patIdx) {
+      sfx.playClick();
+      dexFilterPattern = patIdx;
+      renderTabContent('collection');
+    }
+
+    function setDexSearch(val) {
+      dexSearchQuery = val;
+      renderCollectionGridOnly();
+    }
+
+    function toggleDexOnlyDiscovered() {
+      sfx.playClick();
+      dexOnlyDiscovered = !dexOnlyDiscovered;
+      renderTabContent('collection');
+    }
+
+    function getFilteredAuras() {
+      const q = dexSearchQuery.trim().toLowerCase();
+      return AURAS.filter(a => {
+        if (dexFilterRarity !== 'ALL' && a.rarity !== dexFilterRarity) return false;
+        if (dexFilterPattern !== 'ALL' && a.patternIdx !== Number(dexFilterPattern)) return false;
+        if (dexOnlyDiscovered && !gameState.discovered[a.no]) return false;
+        if (q) {
+          const matchNo = String(a.no) === q || `no.${a.no}`.includes(q) || `#${a.no}` === q;
+          const matchName = a.name.toLowerCase().includes(q) || a.patternName.includes(q);
+          if (!matchNo && !matchName) return false;
+        }
+        return true;
+      });
+    }
+
+    function renderCollectionGridOnly() {
+      const gridEl = document.getElementById('dexGridContainer');
+      const countEl = document.getElementById('dexFilteredCount');
+      if (!gridEl) return;
+
+      const filtered = getFilteredAuras();
+      if (countEl) countEl.textContent = `${filtered.length} 件表示`;
+
+      gridEl.innerHTML = filtered.map(a => {
+        const r = RARITIES[a.rarity];
+        const foundCount = gameState.discovered[a.no] || 0;
+        const isDiscovered = foundCount > 0;
+
+        return `
+          <div class="glass-card rounded-2xl p-3 flex flex-col justify-between ${!isDiscovered ? 'opacity-90' : ''}">
+            <div>
+              <div class="flex items-center justify-between gap-1 mb-1">
+                <span class="font-mono-num text-[11px] font-bold text-slate-100">No.${a.no}</span>
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-display font-bold border ${r.bgClass}">${r.code}・${r.jpName}</span>
+              </div>
+
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <span class="w-3 h-3 rounded-full shrink-0 border border-white/40" style="background-color: ${a.color}; box-shadow: 0 0 8px ${a.color}"></span>
+                <div class="font-display font-black text-sm truncate ${isDiscovered && a.rarity === 'S' ? 'text-rainbow' : ''}" style="${isDiscovered && a.rarity !== 'S' ? `color:${a.color}` : ''}">
+                  ${isDiscovered ? a.name : `？？？ (${a.name})`}
+                </div>
+              </div>
+
+              <div class="flex flex-wrap gap-1 mt-1.5 text-[11px]">
+                <span class="px-1.5 py-0.5 rounded bg-white/10 text-slate-100">${a.patternName}</span>
+                <span class="px-1.5 py-0.5 rounded bg-white/10 text-slate-100">${a.extraName}</span>
+                <span class="font-mono-num px-1.5 py-0.5 rounded bg-white/10 text-slate-100">粒子${a.particles}</span>
+              </div>
+
+              <div class="font-mono-num text-[11px] text-slate-100 mt-1.5">
+                ${formatProbPercent(a.baseProbPercent)} <span class="text-slate-200">(1 in ${formatNumber(a.oneIn)})</span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-1.5 mt-2.5 pt-2 border-t border-white/10 text-[11px]">
+              <span class="font-mono-num ${isDiscovered ? 'text-emerald-300 font-bold' : 'text-slate-200'}">
+                ${isDiscovered ? `獲得 ${foundCount}回` : '未発見'}
+              </span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderTabContent(tabName) {
+      const body = document.getElementById('drawerBody');
+
+      if (tabName === 'collection') {
+        const discoveredCount = Object.keys(gameState.discovered).length;
+        const pct = ((discoveredCount / AURAS.length) * 100).toFixed(1);
+
+        body.innerHTML = `
+          <div class="glass-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div class="text-xs text-slate-100">全${AURAS.length}種オーラ図鑑進捗</div>
+              <div class="font-display text-xl font-black text-white">${discoveredCount} / ${AURAS.length} <span class="text-sm text-purple-300">(${pct}%)</span></div>
+            </div>
+            <div class="w-44 sm:w-64 h-3 bg-slate-950/80 rounded-full overflow-hidden border border-white/15">
+              <div class="h-full bg-gradient-to-r from-sky-400 via-purple-500 to-pink-500" style="width: ${pct}%"></div>
+            </div>
+          </div>
+
+          <!-- Search & Filter Controls -->
+          <div class="space-y-2.5">
+            <div class="flex flex-wrap items-center gap-2">
+              <input type="text" value="${dexSearchQuery}" oninput="setDexSearch(this.value)" placeholder="🔍 オーラ名または No.1〜${AURAS.length} で検索..." class="flex-1 min-w-[200px] bg-slate-950/80 border border-white/20 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-purple-400">
+              <button onclick="toggleDexOnlyDiscovered()" class="px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${dexOnlyDiscovered ? 'bg-emerald-500/30 text-emerald-200 border-emerald-400/60' : 'bg-white/10 text-slate-100 border-white/15'}">
+                ${dexOnlyDiscovered ? '✔ 発見済みのみ' : 'すべて表示 (発見/未発見)'}
+              </button>
+              <span id="dexFilteredCount" class="font-mono-num text-xs text-slate-100 px-2"></span>
+            </div>
+
+            <!-- 8 Rarity Filter Pills -->
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1">
+              <button onclick="setDexRarityFilter('ALL')" class="px-2.5 py-1 rounded-lg text-[12px] font-bold whitespace-nowrap cursor-pointer ${dexFilterRarity === 'ALL' ? 'bg-purple-600 text-white' : 'bg-white/10 text-slate-100 hover:bg-white/20'}">
+                全希少度 (${AURAS.length})
+              </button>
+              ${RARITY_ORDER_LIST.map(code => {
+                const r = RARITIES[code];
+                const active = dexFilterRarity === code;
+                return `
+                  <button onclick="setDexRarityFilter('${code}')" class="px-2.5 py-1 rounded-lg text-[12px] font-bold whitespace-nowrap border cursor-pointer ${active ? r.bgClass + ' ring-1 ring-white/50' : 'bg-white/5 text-slate-100 border-white/10 hover:bg-white/15'}">
+                    ${r.code} (${r.count})
+                  </button>
+                `;
+              }).join('')}
+            </div>
+
+            <!-- 10 Pattern Filter Pills -->
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1">
+              <button onclick="setDexPatternFilter('ALL')" class="px-2.5 py-1 rounded-lg text-[12px] font-bold whitespace-nowrap cursor-pointer ${dexFilterPattern === 'ALL' ? 'bg-sky-600 text-white' : 'bg-white/10 text-slate-100 hover:bg-white/20'}">
+                全10演出
+              </button>
+              ${PATTERNS.map((pName, idx) => {
+                const active = String(dexFilterPattern) === String(idx);
+                return `
+                  <button onclick="setDexPatternFilter(${idx})" class="px-2.5 py-1 rounded-lg text-[12px] font-bold whitespace-nowrap cursor-pointer ${active ? 'bg-sky-500/40 text-sky-100 border border-sky-400/60' : 'bg-white/5 text-slate-100 hover:bg-white/15'}">
+                    ${pName}
+                  </button>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <div id="dexGridContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5"></div>
+        `;
+        renderCollectionGridOnly();
+      } else if (tabName === 'inventory') {
+        const ownedList = AURAS
+          .filter(a => (gameState.inventory[a.no] || 0) > 0)
+          .sort((a, b) => RARITIES[b.rarity].order - RARITIES[a.rarity].order || b.no - a.no);
+
+        body.innerHTML = `
+          <div>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <h4 class="font-bold text-sm text-slate-100">✨ 所持オーラ一覧 (${ownedList.length}種)</h4>
+              <button onclick="convertDuplicateAuras()" class="px-3 py-1.5 rounded-xl bg-cyan-500/25 hover:bg-cyan-500/35 border border-cyan-400/45 text-cyan-200 text-xs font-bold transition cursor-pointer">
+                💠 重複オーラを一括エーテル変換
+              </button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              ${ownedList.map(a => {
+                const r = RARITIES[a.rarity];
+                const cnt = gameState.inventory[a.no] || 0;
+                const isEq = gameState.equippedAuraNo === a.no;
+                const isLocked = !!gameState.lockedAuras[a.no];
+                return `
+                  <div class="glass-card rounded-2xl p-3.5 flex flex-col justify-between ${isEq ? 'ring-2 ring-amber-400 bg-amber-950/25' : ''}">
+                    <div>
+                      <div class="flex items-center justify-between gap-1 mb-1">
+                        <div class="flex items-center gap-1.5">
+                          <span class="font-mono-num text-[11px] text-slate-200">No.${a.no}</span>
+                          <span class="px-2 py-0.5 rounded-full text-[11px] font-display font-bold border ${r.bgClass}">${r.code}・${r.jpName}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                          <span class="font-mono-num text-xs font-bold text-slate-100">×${cnt}</span>
+                          <button onclick="toggleLockAura(${a.no})" class="text-sm hover:scale-110 transition cursor-pointer" title="${isLocked ? 'ロック解除' : '誤分解防止ロック'}">
+                            ${isLocked ? '🔒' : '🔓'}
+                          </button>
+                        </div>
+                      </div>
+                      <div class="font-display font-bold text-base" style="color: ${a.color}">${a.name}</div>
+                      <div class="text-[12px] text-slate-100 mt-0.5">演出: ${a.patternName} | 追加: ${a.extraName} | 粒子: ${a.particles}</div>
+                      <div class="text-[12px] text-amber-200 mt-0.5">${a.perkText}</div>
+                    </div>
+                    <div class="flex items-center gap-2 mt-3 pt-2 border-t border-white/10">
+                      <button onclick="equipAura(${a.no})" ${isEq ? 'disabled' : ''} class="flex-1 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${isEq ? 'bg-amber-400/25 text-amber-300 cursor-default' : 'bg-white/15 hover:bg-white/25 text-white'}">
+                        ${isEq ? '✔ 装備中' : '装備する'}
+                      </button>
+                      ${cnt > 1 ? `
+                        <button onclick="convertDuplicateAuras(${a.no})" class="px-2.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 text-[12px] font-mono-num font-bold cursor-pointer">
+                          +${r.aetherValue * (cnt - 1)}💠
+                        </button>
+                      ` : ''}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-white/10">
+            <h4 class="font-bold text-sm text-slate-100 mb-3">🧪 エーテル錬金術 (Luckポーション作成・使用)</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              ${POTIONS.map(p => {
+                const cnt = gameState.potions[p.id] || 0;
+                const canAfford = gameState.aether >= p.cost;
+                return `
+                  <div class="glass-card rounded-2xl p-3.5 flex flex-col justify-between">
+                    <div>
+                      <div class="flex items-center justify-between">
+                        <div class="font-bold text-sm text-white flex items-center gap-1.5">
+                          <span class="text-lg">${p.icon}</span><span>${p.name}</span>
+                        </div>
+                        <span class="font-mono-num text-xs px-2 py-0.5 rounded bg-white/10 text-cyan-300 font-bold">所持: ${cnt}</span>
+                      </div>
+                      <p class="text-xs text-slate-100 mt-1">${p.desc}</p>
+                    </div>
+                    <div class="flex items-center gap-2 mt-3">
+                      <button onclick="craftPotion('${p.id}')" ${!canAfford ? 'disabled' : ''} class="flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${canAfford ? 'bg-cyan-600/45 hover:bg-cyan-600/65 text-cyan-100 border border-cyan-400/45' : 'bg-white/5 text-slate-300 cursor-not-allowed'}">
+                        錬成 (${formatNumber(p.cost)}💠)
+                      </button>
+                      <button onclick="usePotion('${p.id}')" ${cnt <= 0 ? 'disabled' : ''} class="py-1.5 px-4 rounded-xl text-xs font-bold transition cursor-pointer ${cnt > 0 ? 'bg-purple-600 hover:bg-purple-500 text-white' : 'bg-white/5 text-slate-300 cursor-not-allowed'}">
+                        使用
+                      </button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-white/10">
+            <h4 class="font-bold text-sm text-slate-100 mb-3">🔮 永続Luckチャーム強化</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              ${CHARMS.map(c => {
+                const lvl = gameState.charms[c.id] || 0;
+                const isMax = lvl >= c.maxLevel;
+                const cost = Math.floor(c.baseCost * Math.pow(c.costScale, lvl));
+                const canAfford = !isMax && gameState.aether >= cost;
+                return `
+                  <div class="glass-card rounded-2xl p-3.5 flex flex-col justify-between">
+                    <div>
+                      <div class="flex items-center justify-between">
+                        <div class="font-bold text-sm text-white flex items-center gap-1.5">
+                          <span class="text-lg">${c.icon}</span><span>${c.name}</span>
+                        </div>
+                        <span class="font-mono-num text-xs text-amber-300 font-bold">Lv.${lvl} / ${c.maxLevel}</span>
+                      </div>
+                      <p class="text-xs text-slate-100 mt-1">${c.desc}</p>
+                      <div class="text-[12px] font-mono-num text-emerald-300 mt-1">現在効果: +${formatNumber(lvl * c.luckPerLevel * 100)}% Luck</div>
+                    </div>
+                    <button onclick="upgradeCharm('${c.id}')" ${!canAfford ? 'disabled' : ''} class="mt-3 w-full py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${isMax ? 'bg-amber-500/20 text-amber-300 cursor-default' : canAfford ? 'bg-amber-500/35 hover:bg-amber-500/55 text-amber-100 border border-amber-400/45' : 'bg-white/5 text-slate-300 cursor-not-allowed'}">
+                      ${isMax ? 'MAX LEVEL' : `強化する (${formatNumber(cost)}💠)`}
+                    </button>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      } else if (tabName === 'stats') {
+        const s = gameState.stats;
+        const bestAura = getAuraByNo(s.highestAuraNo);
+        const mins = Math.floor(s.playTimeSec / 60);
+        const secs = s.playTimeSec % 60;
+        const totalRollsSafe = Math.max(1, s.totalRolls);
+        const { totalLuck } = calculateLuckBreakdown();
+        const { weights: curWeights, totalWeight: curTotalWeight } = getEffectiveRarityWeights(totalLuck);
+
+        body.innerHTML = `
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div class="glass-card rounded-2xl p-3.5">
+              <div class="text-[12px] text-slate-100">総ロール回数</div>
+              <div class="font-mono-num text-lg sm:text-xl font-black text-white mt-0.5">${formatNumber(s.totalRolls)}</div>
+            </div>
+            <div class="glass-card rounded-2xl p-3.5">
+              <div class="text-[12px] text-slate-100">最高獲得オーラ</div>
+              <div class="font-display text-sm font-black mt-1" style="color: ${bestAura.color}">No.${bestAura.no} ${bestAura.name}</div>
+            </div>
+            <div class="glass-card rounded-2xl p-3.5">
+              <div class="text-[12px] text-slate-100">図鑑発見数</div>
+              <div class="font-mono-num text-lg font-black text-purple-300 mt-0.5">${Object.keys(gameState.discovered).length} / ${AURAS.length}</div>
+            </div>
+            <div class="glass-card rounded-2xl p-3.5">
+              <div class="text-[12px] text-slate-100">累計獲得エーテル</div>
+              <div class="font-mono-num text-lg font-black text-cyan-300 mt-0.5">${formatNumber(s.totalAetherEarned)}</div>
+            </div>
+            <div class="glass-card rounded-2xl p-3.5 col-span-2 sm:col-span-1">
+              <div class="text-[12px] text-slate-100">プレイ時間</div>
+              <div class="font-mono-num text-lg font-black text-sky-300 mt-0.5">${mins}分 ${secs}秒</div>
+            </div>
+          </div>
+
+          <!-- Exact Excel 8-Rarity Probability Table -->
+          <div class="glass-card rounded-2xl p-4 overflow-x-auto">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <h4 class="font-bold text-sm text-slate-100">📐 全8希少度確率テーブル (Excel『希少度』シート完全準拠)</h4>
+              <span class="font-mono-num text-xs text-amber-300 font-bold">現在Luck倍率: ${formatNumber(totalLuck)}x</span>
+            </div>
+            <table class="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="border-b border-white/15 text-slate-200 text-[12px]">
+                  <th class="py-2 px-2">希少度</th>
+                  <th class="py-2 px-2">基本重み</th>
+                  <th class="py-2 px-2">種類数</th>
+                  <th class="py-2 px-2">基本確率 (1.0x)</th>
+                  <th class="py-2 px-2">何回に1回 (1.0x)</th>
+                  <th class="py-2 px-2 text-amber-300">現在Luck適用確率</th>
+                  <th class="py-2 px-2">獲得回数</th>
+                </tr>
+              </thead>
+              <tbody class="font-mono-num divide-y divide-white/10">
+                ${RARITY_ORDER_LIST.map(code => {
+                  const r = RARITIES[code];
+                  const basePct = DISPLAY_PCT[code];
+                  const perAuraPct = basePct / r.count;
+                  const livePct = (curWeights[code] / curTotalWeight) * 100;
+                  const pulled = s.rarityCounts[code] || 0;
+                  return `
+                    <tr class="hover:bg-white/5">
+                      <td class="py-2 px-2 font-sans font-bold" style="color: ${r.color}">[${r.code}] ${r.enName} (${r.jpName})</td>
+                      <td class="py-2 px-2 text-slate-100">${r.baseWeight}</td>
+                      <td class="py-2 px-2 text-slate-100">${r.count}種</td>
+                      <td class="py-2 px-2 text-slate-100">${formatProbPercent(basePct)}</td>
+                      <td class="py-2 px-2 text-slate-200">1 / ${formatNumber(100 / basePct)}</td>
+                      <td class="py-2 px-2 text-amber-300 font-bold">${formatProbPercent(livePct)}</td>
+                      <td class="py-2 px-2 text-white">${formatNumber(pulled)}回</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="glass-card rounded-2xl p-4">
+            <h4 class="font-bold text-sm text-slate-100 mb-3">📊 レアリティ別獲得グラフ</h4>
+            <div class="space-y-2.5">
+              ${RARITY_ORDER_LIST.map(code => {
+                const r = RARITIES[code];
+                const cnt = s.rarityCounts[code] || 0;
+                const pct = ((cnt / totalRollsSafe) * 100).toFixed(2);
+                return `
+                  <div>
+                    <div class="flex justify-between text-xs mb-1">
+                      <span class="font-bold" style="color: ${r.color}">[${r.code}] ${r.enName} (${r.jpName})</span>
+                      <span class="font-mono-num text-slate-100">${formatNumber(cnt)} 回 (${pct}%)</span>
+                    </div>
+                    <div class="w-full h-2 bg-slate-950/80 rounded-full overflow-hidden">
+                      <div class="h-full rounded-full transition-all" style="width: ${Math.min(100, Math.max(cnt > 0 ? 2 : 0, parseFloat(pct)))}%; background-color: ${r.color}"></div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      } else if (tabName === 'quests') {
+        const q = gameState.quest;
+        const qPct = Math.min(100, Math.round((q.progress / q.target) * 100));
+        const qDone = q.progress >= q.target;
+
+        body.innerHTML = `
+          <div>
+            <h4 class="font-bold text-sm text-slate-100 mb-2.5">🎯 現在の達成目標 (リピータブルクエスト)</h4>
+            <div class="glass-card rounded-2xl p-4 border ${qDone ? 'border-emerald-400/60 bg-emerald-950/25' : 'border-white/10'}">
+              <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <div>
+                  <span class="text-[11px] uppercase tracking-wider text-purple-300 font-bold">MISSION #${q.id}</span>
+                  <div class="font-bold text-base text-white">${q.title}</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-[12px] text-slate-100">報酬</div>
+                  <div class="font-mono-num text-xs font-bold text-cyan-300">+${q.rewardAether}💠 & ポーション</div>
+                </div>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="flex-1 h-2.5 bg-slate-950/80 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-purple-500 to-emerald-400 transition-all" style="width: ${qPct}%"></div>
+                </div>
+                <span class="font-mono-num text-xs font-bold text-slate-100">${q.progress} / ${q.target}</span>
+              </div>
+              ${qDone ? `
+                <button onclick="claimQuestReward()" class="mt-3 w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs tracking-wider shadow-lg shadow-emerald-500/30 transition cursor-pointer">
+                  🎁 クエスト報酬を受け取る！
+                </button>
+              ` : ''}
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-white/10">
+            <h4 class="font-bold text-sm text-slate-100 mb-2.5">🏆 実績一覧 (達成で永続Luck倍率アップ！)</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              ${ACHIEVEMENTS.map(ach => {
+                const unlocked = !!gameState.achievements[ach.id];
+                return `
+                  <div class="glass-card rounded-2xl p-3.5 flex items-center justify-between gap-3 ${unlocked ? 'border-amber-400/55 bg-amber-950/20' : 'opacity-70'}">
+                    <div>
+                      <div class="font-bold text-sm ${unlocked ? 'text-amber-300' : 'text-slate-100'} flex items-center gap-1.5">
+                        <span>${unlocked ? '🏆' : '🔒'}</span>
+                        <span>${ach.name}</span>
+                      </div>
+                      <p class="text-xs text-slate-100 mt-0.5">${ach.desc}</p>
+                    </div>
+                    <div class="text-right shrink-0">
+                      <span class="font-mono-num text-xs px-2 py-1 rounded-lg font-bold ${unlocked ? 'bg-amber-400/25 text-amber-200' : 'bg-white/10 text-slate-100'}">
+                        +${Math.round(ach.luckBonus * 100)}% Luck
+                      </span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      } else if (tabName === 'settings') {
+        const st = gameState.settings;
+        body.innerHTML = `
+          <div class="space-y-3">
+            <div class="glass-card rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <div class="font-bold text-sm text-white">⚡ 高速ロール (Fast Roll)</div>
+                <div class="text-xs text-slate-100">抽選スロットの回転時間を短縮して素早くロールします。</div>
+              </div>
+              <button onclick="updateSetting('fastRoll', ${!st.fastRoll})" class="px-4 py-2 rounded-xl font-bold text-xs cursor-pointer ${st.fastRoll ? 'bg-emerald-500 text-slate-950' : 'bg-white/15 text-slate-100'}">
+                ${st.fastRoll ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
+            <div class="glass-card rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <div class="font-bold text-sm text-white">👑 上位レアリティ自動装備</div>
+                <div class="text-xs text-slate-100">装備中のオーラより希少度が高いオーラを引いた時に自動装備します。</div>
+              </div>
+              <button onclick="updateSetting('autoEquipBetter', ${!st.autoEquipBetter})" class="px-4 py-2 rounded-xl font-bold text-xs cursor-pointer ${st.autoEquipBetter ? 'bg-emerald-500 text-slate-950' : 'bg-white/15 text-slate-100'}">
+                ${st.autoEquipBetter ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
+            <div class="glass-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div class="font-bold text-sm text-white">🎬 特別カットイン演出の閾値</div>
+                <div class="text-xs text-slate-100">どのレアリティ以上で全画面カットイン演出を再生するか選択します。</div>
+              </div>
+              <select onchange="updateSetting('cutsceneThreshold', Number(this.value))" class="bg-slate-900 border border-white/25 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none">
+                <option value="3" ${st.cutsceneThreshold === 3 ? 'selected' : ''}>Rare (R) 以上</option>
+                <option value="4" ${st.cutsceneThreshold === 4 ? 'selected' : ''}>Lucky 7 (L7) 以上</option>
+                <option value="5" ${st.cutsceneThreshold === 5 ? 'selected' : ''}>Epic (E) 以上 (推奨)</option>
+                <option value="6" ${st.cutsceneThreshold === 6 ? 'selected' : ''}>Legendary (L) 以上</option>
+                <option value="99" ${st.cutsceneThreshold === 99 ? 'selected' : ''}>OFF (演出スキップ)</option>
+              </select>
+            </div>
+
+            <div class="glass-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div class="font-bold text-sm text-white">💠 重複オーラ自動エーテル変換</div>
+                <div class="text-xs text-slate-100">2個目以降の重複獲得時、指定レアリティ以下を自動でエーテルに変換します。</div>
+              </div>
+              <select onchange="updateSetting('autoConvertBelowOrder', Number(this.value))" class="bg-slate-900 border border-white/25 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none">
+                <option value="0" ${st.autoConvertBelowOrder === 0 ? 'selected' : ''}>自動変換しない</option>
+                <option value="1" ${st.autoConvertBelowOrder === 1 ? 'selected' : ''}>Common (C) のみ自動変換</option>
+                <option value="2" ${st.autoConvertBelowOrder === 2 ? 'selected' : ''}>Uncommon (U) 以下を自動変換</option>
+                <option value="3" ${st.autoConvertBelowOrder === 3 ? 'selected' : ''}>Rare (R) 以下を自動変換</option>
+              </select>
+            </div>
+
+            <div class="glass-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div class="font-bold text-sm text-white">🔊 サウンド効果音 (Web Audio)</div>
+                <div class="text-xs text-slate-100">シンセサイザー効果音のON/OFFと音量を調整します。</div>
+              </div>
+              <div class="flex items-center gap-3">
+                <input type="range" min="0" max="1" step="0.05" value="${st.sfxVolume}" onchange="updateSetting('sfxVolume', Number(this.value))" class="w-24 accent-purple-500">
+                <button onclick="updateSetting('sfxEnabled', ${!st.sfxEnabled})" class="px-4 py-2 rounded-xl font-bold text-xs cursor-pointer ${st.sfxEnabled ? 'bg-emerald-500 text-slate-950' : 'bg-white/15 text-slate-100'}">
+                  ${st.sfxEnabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-4 space-y-2.5">
+              <div class="font-bold text-sm text-white">💾 JSONセーブデータ管理 (自動保存対応)</div>
+              <div class="flex flex-wrap gap-2">
+                <button onclick="exportSaveData()" class="px-3.5 py-2 rounded-xl bg-sky-500/25 hover:bg-sky-500/35 border border-sky-400/45 text-sky-200 text-xs font-bold cursor-pointer">
+                  📋 JSONデータをコピー書き出し
+                </button>
+                <button onclick="openImportSaveModal()" class="px-3.5 py-2 rounded-xl bg-purple-500/25 hover:bg-purple-500/35 border border-purple-400/45 text-purple-200 text-xs font-bold cursor-pointer">
+                  📥 JSONデータを読み込み
+                </button>
+                <button onclick="confirmResetSave()" class="px-3.5 py-2 rounded-xl bg-rose-500/25 hover:bg-rose-500/35 border border-rose-400/45 text-rose-200 text-xs font-bold cursor-pointer ml-auto">
+                  🗑️ データ初期化
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function updateSetting(key, val) {
+      gameState.settings[key] = val;
+      sfx.playClick();
+      saveGame();
+      renderTabContent('settings');
+    }
+
+    /**
+     * ============================================================================
+     * 9. CUSTOM MODALS & TOASTS (NO NATIVE ALERT / CONFIRM)
+     * ============================================================================
+     */
+    function showToast(message) {
+      const container = document.getElementById('toastContainer');
+      const el = document.createElement('div');
+      el.className = 'glass-drawer px-4 py-2 rounded-full text-xs sm:text-sm font-bold text-white border border-purple-400/50 shadow-xl transition-all duration-300 transform -translate-y-2 opacity-0';
+      el.textContent = message;
+      container.appendChild(el);
+
+      requestAnimationFrame(() => {
+        el.classList.remove('-translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        el.classList.add('-translate-y-2', 'opacity-0');
+        setTimeout(() => el.remove(), 300);
+      }, 3200);
+    }
+
+    function openCustomModal({ title, message, showInput = false, onConfirm }) {
+      const modal = document.getElementById('customModal');
+      document.getElementById('customModalTitle').textContent = title;
+      document.getElementById('customModalMessage').textContent = message;
+      const input = document.getElementById('customModalInput');
+      input.value = '';
+      input.classList.toggle('hidden', !showInput);
+
+      document.getElementById('customModalConfirm').onclick = () => {
+        const val = input.value;
+        closeCustomModal();
+        if (onConfirm) onConfirm(val);
+      };
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeCustomModal() {
+      document.getElementById('customModal').classList.add('hidden');
+    }
+
+    function exportSaveData() {
+      try {
+        const jsonStr = JSON.stringify(gameState);
+        const tempInput = document.createElement('textarea');
+        tempInput.value = jsonStr;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+        showToast('📋 JSONセーブデータをクリップボードにコピーしました！');
+      } catch (e) {
+        showToast('⚠️ エクスポートに失敗しました');
+      }
+    }
+
+    function openImportSaveModal() {
+      openCustomModal({
+        title: 'JSONセーブデータのインポート',
+        message: '書き出したJSONセーブデータを以下に貼り付けて「OK」を押してください。',
+        showInput: true,
+        onConfirm: (rawText) => {
+          try {
+            const trimmed = rawText.trim();
+            if (!trimmed) return;
+            const decoded = JSON.parse(trimmed);
+            if (decoded && decoded.stats) {
+              localStorage.setItem(SAVE_KEY, JSON.stringify(decoded));
+              loadGame();
+              syncAuraParticlePool(true);
+              updateAllUI();
+              closeTab();
+              showToast('✅ セーブデータを復元しました！');
+            } else {
+              showToast('⚠️ 無効なセーブデータ形式です');
+            }
+          } catch (e) {
+            showToast('⚠️ セーブデータの読み込みに失敗しました');
+          }
+        }
+      });
+    }
+
+    function confirmResetSave() {
+      openCustomModal({
+        title: 'セーブデータの初期化',
+        message: '本当にすべての所持オーラ・図鑑・実績・統計データをリセットしますか？\nこの操作は取り消せません。',
+        showInput: false,
+        onConfirm: () => {
+          localStorage.removeItem(SAVE_KEY);
+          gameState = defaultState();
+          syncAuraParticlePool(true);
+          saveGame();
+          updateAllUI();
+          closeTab();
+          showToast('🗑️ セーブデータを初期化しました');
+        }
+      });
+    }
+
+    /**
+     * ============================================================================
+     * 10. 10 PATTERNS × 4 EXTRA EFFECTS × PARTICLE COUNT CANVAS ENGINE (#aura-canvas)
+     * ============================================================================
+     */
+    const canvas = document.getElementById('aura-canvas');
+    const ctx = canvas.getContext('2d');
+    let width = window.innerWidth || document.documentElement.clientWidth || 360;
+    let height = window.innerHeight || document.documentElement.clientHeight || 640;
+    let dpr = 1;
+
+    function resizeCanvas() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      width = window.innerWidth || document.documentElement.clientWidth || 360;
+      height = window.innerHeight || document.documentElement.clientHeight || 640;
+      canvas.width = Math.max(1, Math.floor(width * dpr));
+      canvas.height = Math.max(1, Math.floor(height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // Persistent Cosmic Background Starfield
+    const bgStars = Array.from({ length: 120 }, () => ({
+      x: Math.random(),
+      y: Math.random(),
+      size: Math.random() * 2.0 + 0.5,
+      speed: Math.random() * 0.00018 + 0.00005,
+      phase: Math.random() * Math.PI * 2
+    }));
+
+    const weatherParticles = [];
+    const auraParticles = [];
+    const burstParticles = [];
+    let lastPoolSignature = '';
+
+    // オーラの表示位置・大きさ: ヘッダー(名前表示)とフッターの間の空きスペースに合わせて自動調整
+    let auraCy = window.innerHeight * 0.6, auraScale = 1.2, auraTargetCy = null, auraTargetScale = 1.2, layoutTick = 0;
+    function updateAuraLayout() {
+      if (auraTargetCy === null || (layoutTick++ % 8) === 0) {
+        const b = document.getElementById('equippedBanner');
+        const f = document.querySelector('footer');
+        const br = b ? b.getBoundingClientRect() : { top: 0, height: 0 };
+        const top = br.top + br.height * 0.45;
+        const bottom = f ? f.getBoundingClientRect().top : height;
+        const avail = Math.max(120, bottom - top);
+        auraTargetCy = top + avail / 2;
+        auraTargetScale = Math.max(1.2, Math.min(2.8, Math.min(width * 0.5, avail * 0.5) / 135));
+      }
+      auraCy += (auraTargetCy - auraCy) * 0.14;
+      auraScale += (auraTargetScale - auraScale) * 0.14;
+    }
+
+    function createSingleAuraParticle(index, total, aura) {
+      return {
+        idx: index,
+        total,
+        angle: (index / Math.max(1, total)) * Math.PI * 2 + Math.random() * 0.3,
+        radius: 48 + Math.random() * 145,
+        speed: 0.6 + Math.random() * 1.1,
+        xOff: (Math.random() - 0.5) * 230,
+        yOff: (Math.random() - 0.5) * 220,
+        progress: (index / Math.max(1, total)) + Math.random() * 0.2,
+        size: 2.6 + Math.random() * 3.4,
+        phase: Math.random() * Math.PI * 2,
+        tilt: (index % 3 - 1) * 0.42
+      };
+    }
+
+    function syncAuraParticlePool(forceReset = false) {
+      const aura = getCurrentDisplayAura();
+      const sig = `${aura.no}_${aura.patternIdx}_${aura.particles}`;
+      if (forceReset || sig !== lastPoolSignature || auraParticles.length !== aura.particles) {
+        lastPoolSignature = sig;
+        auraParticles.length = 0;
+        for (let i = 0; i < aura.particles; i++) {
+          auraParticles.push(createSingleAuraParticle(i, aura.particles, aura));
+        }
+      }
+    }
+
+    function spawnBurstParticles(color, count = 45) {
+      const cx = width * 0.5;
+      const cy = auraCy;
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 8 + 2.5;
+        burstParticles.push({
+          x: cx,
+          y: cy,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          size: Math.random() * 4.5 + 2,
+          life: 1.0,
+          decay: Math.random() * 0.02 + 0.014,
+          color
+        });
+      }
+    }
+
+    function getDynamicAuraColor(aura, t, offset = 0, alpha = 1) {
+      if (aura.rarity === 'L7') {
+        const h = (t * 95 + aura.hueDeg + offset) % 360;
+        return `hsla(${h}, 95%, 64%, ${alpha})`;
+      }
+      if (alpha >= 1) return aura.color;
+      // Convert hex to rgba
+      const hex = aura.color.replace('#', '');
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    // Extra Effect 1, 2, 3: Magic Rings
+    function drawGeometricRings(cx, cy, t, aura, colorMain, colorSub) {
+      const rings = [
+        { rad: 112, sides: 6, speed: 0.75, alpha: 0.75, lw: 2.2 },
+        { rad: 152, sides: 8, speed: -0.55, alpha: 0.62, lw: 1.8 },
+        { rad: 192, sides: 12, speed: 0.35, alpha: 0.42, lw: 1.4 }
+      ];
+
+      rings.forEach((rg, idx) => {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(t * rg.speed);
+        ctx.strokeStyle = idx % 2 === 0 ? colorMain : colorSub;
+        ctx.globalAlpha = rg.alpha;
+        ctx.lineWidth = rg.lw;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, rg.rad, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Inscribed polygon
+        ctx.beginPath();
+        for (let i = 0; i <= rg.sides; i++) {
+          const a = (i / rg.sides) * Math.PI * 2;
+          const px = Math.cos(a) * rg.rad;
+          const py = Math.sin(a) * rg.rad;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+
+        // Degree ticks
+        for (let k = 0; k < 24; k++) {
+          const a = (k / 24) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * (rg.rad - 5), Math.sin(a) * (rg.rad - 5));
+          ctx.lineTo(Math.cos(a) * (rg.rad + 5), Math.sin(a) * (rg.rad + 5));
+          ctx.stroke();
+        }
+        ctx.restore();
+      });
+    }
+
+    // Extra Effect 2 & 3: Volumetric God-Rays
+    function drawGodRays(cx, cy, t, aura) {
+      const rayCount = aura.extraIdx >= 3 ? 16 : 12;
+      const maxLen = 190;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      for (let i = 0; i < rayCount; i++) {
+        const baseAngle = (i / rayCount) * Math.PI * 2 + t * (i % 2 === 0 ? 0.28 : -0.2);
+        const spread = 0.055 + Math.sin(t * 2.5 + i) * 0.015;
+        const len = maxLen * (0.75 + 0.25 * Math.sin(t * 3 + i * 1.7));
+
+        const rayColor = getDynamicAuraColor(aura, t, i * 25, 0.36);
+        const grad = ctx.createRadialGradient(0, 0, 12, 0, 0, len);
+        grad.addColorStop(0, rayColor);
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(baseAngle - spread) * len, Math.sin(baseAngle - spread) * len);
+        ctx.lineTo(Math.cos(baseAngle + spread) * len, Math.sin(baseAngle + spread) * len);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // Extra Effect 3: RGB Chromatic Aberration & Scanline Glitch (Secret)
+    function drawSecretGlitchOverlay(cx, cy, t, aura) {
+      const jitterX = (Math.random() - 0.5) * 16;
+      const jitterY = (Math.random() - 0.5) * 10;
+
+      // RGB Split Rings
+      drawGeometricRings(cx + jitterX, cy + jitterY, t * 1.2, aura, '#ff0055', '#00ffff');
+      drawGeometricRings(cx - jitterX, cy - jitterY, -t * 1.1, aura, '#00ffff', '#ff00ff');
+
+      // Horizontal Scanline Glitch Slices
+      for (let i = 0; i < 9; i++) {
+        const gy = cy + (Math.random() - 0.5) * 260;
+        const gw = 80 + Math.random() * 240;
+        const gx = cx - gw * 0.5 + (Math.random() - 0.5) * 70;
+        ctx.fillStyle = i % 3 === 0
+          ? 'rgba(0, 255, 255, 0.35)'
+          : i % 3 === 1
+          ? 'rgba(255, 0, 102, 0.35)'
+          : 'rgba(255, 255, 255, 0.28)';
+        ctx.fillRect(gx, gy, gw, 2.5 + Math.random() * 3);
+      }
+    }
+
+    // Draw Central Crystalline Soul Core
+    // 追加演出: オーラごとに6種のモチーフが周回 (No.%6で決定)。希少度が高いほど数・半径・二重軌道が増える
+    function drawMotifLayer(cx, cy, t, aura) {
+      const o = RARITIES[aura.rarity].order, m = aura.no % 6, n = 3 + o, r0 = 95 + o * 6;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const c = getDynamicAuraColor(aura, t, 60, 0.85);
+      ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = 1.6;
+      for (let ring = 0; ring < (o >= 6 ? 2 : 1); ring++) {
+        for (let i = 0; i < n; i++) {
+          const dir = (m % 2 ? 1 : -1) * (ring ? -1 : 1);
+          const a = t * 0.7 * dir + i * Math.PI * 2 / n;
+          const rr = r0 + ring * 38;
+          ctx.save();
+          ctx.translate(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.8);
+          ctx.rotate(a + t);
+          ctx.beginPath();
+          if (m === 0) { ctx.moveTo(0, -9); ctx.lineTo(6, 0); ctx.lineTo(0, 9); ctx.lineTo(-6, 0); ctx.closePath(); ctx.fill(); }
+          else if (m === 1) { ctx.moveTo(0, -10); ctx.quadraticCurveTo(0, 0, 10, 0); ctx.quadraticCurveTo(0, 0, 0, 10); ctx.quadraticCurveTo(0, 0, -10, 0); ctx.quadraticCurveTo(0, 0, 0, -10); ctx.fill(); }
+          else if (m === 2) { for (let k = 0; k < 6; k++) ctx.lineTo(Math.cos(k * 1.047) * 8, Math.sin(k * 1.047) * 8); ctx.closePath(); ctx.stroke(); }
+          else if (m === 3) { ctx.ellipse(0, 0, 10, 4, 0, 0, Math.PI * 2); ctx.fill(); }
+          else if (m === 4) { ctx.moveTo(0, -9); ctx.lineTo(8, 6); ctx.lineTo(-8, 6); ctx.closePath(); ctx.stroke(); }
+          else { ctx.moveTo(-8, -4); ctx.lineTo(-2, 2); ctx.lineTo(2, -3); ctx.lineTo(8, 4); ctx.stroke(); }
+          ctx.restore();
+        }
+      }
+      ctx.restore();
+    }
+
+    function drawAuraCore(cx, cy, t, aura) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+
+      const mainCol = getDynamicAuraColor(aura, t, 0, 1);
+      const pulseScale = aura.patternIdx === 6 ? (1 + Math.sin(t * 6.5) * 0.18) : (1 + Math.sin(t * 3.0) * 0.08);
+      const coreRadius = (36 + RARITIES[aura.rarity].order * 3) * pulseScale;
+
+      const coreGrad = ctx.createRadialGradient(cx, cy, 4, cx, cy, coreRadius * 2.1);
+      coreGrad.addColorStop(0, '#ffffff');
+      coreGrad.addColorStop(0.32, mainCol);
+      coreGrad.addColorStop(0.7, getDynamicAuraColor(aura, t, 45, 0.35));
+      coreGrad.addColorStop(1, 'rgba(0,0,0,0)');
+
+      ctx.fillStyle = coreGrad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, coreRadius * 2.1, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Crystalline Guardian Silhouette
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.fillStyle = aura.extraIdx === 3 ? 'rgba(5, 7, 15, 0.85)' : getDynamicAuraColor(aura, t, 0, 0.38);
+
+      // Head Diamond
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 34);
+      ctx.lineTo(cx + 9, cy - 22);
+      ctx.lineTo(cx, cy - 10);
+      ctx.lineTo(cx - 9, cy - 22);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Torso Diamond
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 6);
+      ctx.lineTo(cx + 21, cy + 12);
+      ctx.lineTo(cx, cy + 38);
+      ctx.lineTo(cx - 21, cy + 12);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // 10 Distinct Pattern Renderers using exact `auraParticles` count
+    function drawPatternParticles(cx, cy, t, aura) {
+      const pat = aura.patternIdx;
+      const count = auraParticles.length;
+
+      // 0: 周回 (Orbit)
+      if (pat === 0) {
+        // Draw 3 tilted orbital rings
+        for (let rIdx = 0; rIdx < 3; rIdx++) {
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate((rIdx - 1) * 0.48 + Math.sin(t * 0.7) * 0.08);
+          ctx.strokeStyle = getDynamicAuraColor(aura, t, rIdx * 30, 0.38);
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 95 + rIdx * 24, 34 + rIdx * 9, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+        auraParticles.forEach((p, i) => {
+          p.angle += 0.022 * p.speed;
+          const track = i % 3;
+          const rx = 95 + track * 24;
+          const ry = 34 + track * 9;
+          const tilt = (track - 1) * 0.48;
+          const lx = Math.cos(p.angle) * rx;
+          const ly = Math.sin(p.angle) * ry;
+          const px = cx + lx * Math.cos(tilt) - ly * Math.sin(tilt);
+          const py = cy + lx * Math.sin(tilt) + ly * Math.cos(tilt);
+
+          ctx.fillStyle = getDynamicAuraColor(aura, t, i * 12, 0.9);
+          ctx.beginPath();
+          ctx.arc(px, py, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      // 1: 上昇 (Ascend)
+      else if (pat === 1) {
+        auraParticles.forEach((p, i) => {
+          p.progress += 0.008 * p.speed;
+          if (p.progress > 1) p.progress -= 1;
+          const py = cy + 125 - p.progress * 260;
+          const px = cx + p.xOff * (1 - p.progress * 0.35) + Math.sin(t * 3 + p.phase) * 14;
+          const alpha = Math.sin(p.progress * Math.PI);
+
+          ctx.fillStyle = getDynamicAuraColor(aura, t, i * 15, alpha * 0.95);
+          ctx.beginPath();
+          ctx.arc(px, py, p.size * (0.6 + alpha * 0.6), 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      // 2: きらめき (Sparkle)
+      else if (pat === 2) {
+        auraParticles.forEach((p, i) => {
+          const twinkle = Math.max(0, Math.sin(t * 4.5 + p.phase));
+          const px = cx + Math.cos(p.angle) * p.radius;
+          const py = cy + Math.sin(p.angle) * (p.radius * 0.85);
+          const r = (p.size + 3) * twinkle;
+
+          if (r > 0.4) {
+            ctx.fillStyle = getDynamicAuraColor(aura, t, i * 18, twinkle);
+            ctx.beginPath();
+            ctx.moveTo(px, py - r * 2.1);
+            ctx.lineTo(px + r * 0.55, py - r * 0.55);
+            ctx.lineTo(px + r * 2.1, py);
+            ctx.lineTo(px + r * 0.55, py + r * 0.55);
+            ctx.lineTo(px, py + r * 2.1);
+            ctx.lineTo(px - r * 0.55, py + r * 0.55);
+            ctx.lineTo(px - r * 2.1, py);
+            ctx.lineTo(px - r * 0.55, py - r * 0.55);
+            ctx.closePath();
+            ctx.fill();
+          }
+        });
+      }
+
+      // 3: 波紋 (Ripple)
+      else if (pat === 3) {
+        for (let r = 0; r < 4; r++) {
+          const phase = (t * 0.65 + r * 0.25) % 1;
+          const rad = 28 + phase * 175;
+          ctx.strokeStyle = getDynamicAuraColor(aura, t, r * 25, (1 - phase) * 0.85);
+          ctx.lineWidth = 2.4;
+          ctx.beginPath();
+          ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        auraParticles.forEach((p, i) => {
+          const phase = (t * 0.65 + (i / count)) % 1;
+          const rad = 28 + phase * 175;
+          const px = cx + Math.cos(p.angle) * rad;
+          const py = cy + Math.sin(p.angle) * rad;
+          ctx.fillStyle = getDynamicAuraColor(aura, t, i * 10, (1 - phase) * 0.9);
+          ctx.beginPath();
+          ctx.arc(px, py, p.size * 0.9, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      // 4: 渦巻き (Vortex)
+      else if (pat === 4) {
+        for (let arm = 0; arm < 3; arm++) {
+          ctx.strokeStyle = getDynamicAuraColor(aura, t, arm * 40, 0.45);
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
+          for (let s = 0; s < 32; s++) {
+            const rad = s * 5.2;
+            const ang = arm * ((Math.PI * 2) / 3) + s * 0.2 - t * 2.4;
+            const px = cx + Math.cos(ang) * rad;
+            const py = cy + Math.sin(ang) * rad;
+            if (s === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.stroke();
+        }
+        auraParticles.forEach((p, i) => {
+          p.progress = (p.progress + 0.009 * p.speed) % 1;
+          const rad = (1 - p.progress) * 185 + 15;
+          const ang = p.angle + p.progress * 6.5 - t * 2.2;
+          const px = cx + Math.cos(ang) * rad;
+          const py = cy + Math.sin(ang) * rad;
+          ctx.fillStyle = getDynamicAuraColor(aura, t, i * 12, 0.9);
+          ctx.beginPath();
+          ctx.arc(px, py, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      // 5: 降下 (Descend)
+      else if (pat === 5) {
+        auraParticles.forEach((p, i) => {
+          p.progress += 0.0085 * p.speed;
+          if (p.progress > 1) p.progress -= 1;
+          const py = cy - 145 + p.progress * 285;
+          const px = cx + p.xOff + Math.sin(t * 2.6 + p.phase) * 16;
+          const alpha = Math.sin(p.progress * Math.PI);
+
+          ctx.fillStyle = getDynamicAuraColor(aura, t, i * 14, alpha * 0.95);
+          ctx.beginPath();
+          ctx.ellipse(px, py, p.size * 0.7, p.size * 1.4, Math.sin(t * 2 + p.phase) * 0.3, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      // 6: 脈動 (Pulse)
+      else if (pat === 6) {
+        const beat = Math.pow(Math.max(0, Math.sin(t * 3.2)), 4);
+        const pulseRad = 70 + beat * 95;
+        ctx.strokeStyle = getDynamicAuraColor(aura, t, 0, 0.45 + beat * 0.5);
+        ctx.lineWidth = 3 + beat * 4;
+        ctx.beginPath();
+        ctx.arc(cx, cy, pulseRad, 0, Math.PI * 2);
+        ctx.stroke();
+
+        auraParticles.forEach((p, i) => {
+          const rad = p.radius * (0.85 + beat * 0.42);
+          const px = cx + Math.cos(p.angle + t * 0.4) * rad;
+          const py = cy + Math.sin(p.angle + t * 0.4) * rad;
+          ctx.fillStyle = getDynamicAuraColor(aura, t, i * 12, 0.65 + beat * 0.35);
+          ctx.beginPath();
+          ctx.arc(px, py, p.size * (0.9 + beat * 0.5), 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      // 7: 炎 (Flame)
+      else if (pat === 7) {
+        for (let f = -3; f <= 3; f++) {
+          const fx = cx + f * 24;
+          const fh = 120 + Math.sin(t * 8 + f * 1.8) * 35;
+          const fGrad = ctx.createLinearGradient(fx, cy + 48, fx, cy - fh);
+          fGrad.addColorStop(0, getDynamicAuraColor(aura, t, f * 15, 0.72));
+          fGrad.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = fGrad;
+          ctx.fillRect(fx - 10, cy - fh, 20, fh + 48);
+        }
+        auraParticles.forEach((p, i) => {
+          p.progress = (p.progress + 0.015 * p.speed) % 1;
+          const py = cy + 60 - p.progress * 210;
+          const px = cx + p.xOff * 0.65 * (1 - p.progress * 0.5) + Math.sin(t * 7 + p.phase) * 10;
+          const alpha = 1 - p.progress;
+          ctx.fillStyle = getDynamicAuraColor(aura, t, i * 10, alpha);
+          ctx.beginPath();
+          ctx.arc(px, py, p.size * (1.2 - p.progress * 0.7), 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      // 8: 波 (Wave)
+      else if (pat === 8) {
+        for (let w = 0; w < 3; w++) {
+          ctx.strokeStyle = getDynamicAuraColor(aura, t, w * 35, 0.5);
+          ctx.lineWidth = 2.4;
+          ctx.beginPath();
+          for (let x = -220; x <= 220; x += 14) {
+            const y = Math.sin(x * 0.025 + t * 3.2 + w * 2.1) * (36 + w * 12) + (w - 1) * 24;
+            if (x === -220) ctx.moveTo(cx + x, cy + y);
+            else ctx.lineTo(cx + x, cy + y);
+          }
+          ctx.stroke();
+        }
+        auraParticles.forEach((p, i) => {
+          p.progress = (p.progress + 0.009 * p.speed) % 1;
+          const x = -210 + p.progress * 420;
+          const lane = (i % 3) - 1;
+          const y = Math.sin(x * 0.025 + t * 3.2 + (i % 3) * 2.1) * 42 + lane * 24;
+          const alpha = Math.sin(p.progress * Math.PI);
+          ctx.fillStyle = getDynamicAuraColor(aura, t, i * 12, alpha * 0.95);
+          ctx.beginPath();
+          ctx.arc(cx + x, cy + y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      // 9: 爆発 (Burst)
+      else if (pat === 9) {
+        auraParticles.forEach((p, i) => {
+          p.progress = (p.progress + 0.014 * p.speed) % 1;
+          const dist = 16 + p.progress * 195;
+          const px = cx + Math.cos(p.angle) * dist;
+          const py = cy + Math.sin(p.angle) * dist;
+          const alpha = 1 - p.progress;
+
+          ctx.strokeStyle = getDynamicAuraColor(aura, t, i * 12, alpha * 0.75);
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(p.angle) * Math.max(12, dist - 18), cy + Math.sin(p.angle) * Math.max(12, dist - 18));
+          ctx.lineTo(px, py);
+          ctx.stroke();
+
+          ctx.fillStyle = getDynamicAuraColor(aura, t, i * 12, alpha);
+          ctx.beginPath();
+          ctx.arc(px, py, p.size * (1.1 - p.progress * 0.5), 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+    }
+
+    function renderLoop(timestamp) {
+      try { renderFrame(timestamp); } catch (err) { console.error(err); try { ctx.restore(); } catch (_) {} ctx.globalAlpha = 1; }
+      requestAnimationFrame(renderLoop);
+    }
+
+    function renderFrame(timestamp) {
+      const curW = window.innerWidth || document.documentElement.clientWidth || 360;
+      const curH = window.innerHeight || document.documentElement.clientHeight || 640;
+      if (curW !== width || curH !== height) {
+        resizeCanvas();
+      }
+
+      const t = (timestamp || performance.now()) * 0.001;
+      const cx = width * 0.5;
+      updateAuraLayout();
+      const cy = auraCy + Math.sin(t * 2.1) * 6;
+      const aura = getCurrentDisplayAura();
+      const rarityOrder = RARITIES[aura.rarity].order;
+
+      syncAuraParticlePool(false);
+
+      // 1. Transparent Clear
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.clearRect(0, 0, width, height);
+
+      // 2. Twinkling Background Starfield
+      bgStars.forEach(s => {
+        s.y -= s.speed;
+        if (s.y < 0) s.y = 1;
+        const alpha = 0.28 + 0.58 * Math.sin(t * 2.2 + s.phase);
+        ctx.fillStyle = `rgba(226, 232, 240, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(s.x * width, s.y * height, s.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // 3. Probability Fluctuation / Weather Environment Layer
+      if (currentWeather.id === 'starfall') {
+        if (Math.random() < 0.16) {
+          weatherParticles.push({
+            x: Math.random() * width * 1.2,
+            y: -20,
+            vx: -6 - Math.random() * 4,
+            vy: 8 + Math.random() * 5,
+            life: 1
+          });
+        }
+        for (let i = weatherParticles.length - 1; i >= 0; i--) {
+          const wp = weatherParticles[i];
+          wp.x += wp.vx;
+          wp.y += wp.vy;
+          wp.life -= 0.015;
+          ctx.strokeStyle = `rgba(253, 224, 71, ${wp.life * 0.8})`;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(wp.x, wp.y);
+          ctx.lineTo(wp.x - wp.vx * 3.5, wp.y - wp.vy * 3.5);
+          ctx.stroke();
+          if (wp.life <= 0 || wp.y > height) weatherParticles.splice(i, 1);
+        }
+      } else if (currentWeather.id === 'eclipse') {
+        const ex = width * 0.5;
+        const ey = height * 0.24;
+        const corona = ctx.createRadialGradient(ex, ey, 32, ex, ey, 115);
+        corona.addColorStop(0, 'rgba(0,0,0,0.95)');
+        corona.addColorStop(0.35, 'rgba(168, 85, 247, 0.55)');
+        corona.addColorStop(1, 'rgba(168, 85, 247, 0)');
+        ctx.fillStyle = corona;
+        ctx.beginPath();
+        ctx.arc(ex, ey, 115, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (currentWeather.id === 'divine') {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const beamGrad = ctx.createLinearGradient(cx, 0, cx, height * 0.8);
+        beamGrad.addColorStop(0, 'rgba(251, 191, 36, 0.16)');
+        beamGrad.addColorStop(1, 'rgba(251, 191, 36, 0)');
+        ctx.fillStyle = beamGrad;
+        ctx.beginPath();
+        ctx.moveTo(cx - 55, 0);
+        ctx.lineTo(cx + 55, 0);
+        ctx.lineTo(cx + 210, height * 0.8);
+        ctx.lineTo(cx - 210, height * 0.8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      } else if (currentWeather.id === 'convergence') {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(34, 211, 238, 0.25)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 245 + Math.sin(t * 3) * 14, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 4. High-Luminance Additive Blending for Active Aura VFX
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+
+      // 画面の空き具合に合わせてオーラ全体を拡大
+      ctx.translate(cx, cy);
+      ctx.scale(auraScale, auraScale);
+      ctx.translate(-cx, -cy);
+
+      // Ambient Aura Glow
+      const baseRadius = 110 + rarityOrder * 13;
+      const ambientGlow = ctx.createRadialGradient(cx, cy, 8, cx, cy, baseRadius);
+      ambientGlow.addColorStop(0, getDynamicAuraColor(aura, t, 0, 0.55));
+      ambientGlow.addColorStop(0.5, getDynamicAuraColor(aura, t, 40, 0.2));
+      ambientGlow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = ambientGlow;
+      ctx.beginPath();
+      ctx.arc(cx, cy, baseRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Extra Effect 2 & 3: Volumetric God-Rays (Legendary / Mythical / Secret)
+      if (aura.extraIdx >= 2) {
+        drawGodRays(cx, cy, t, aura);
+      }
+
+      // Extra Effect 1, 2, 3: Double Geometric Rings (Epic / Legendary / Mythical / Secret)
+      if (aura.extraIdx >= 1) {
+        const mainC = getDynamicAuraColor(aura, t, 0, 1);
+        const subC = getDynamicAuraColor(aura, t, 60, 1);
+        drawGeometricRings(cx, cy, t, aura, mainC, subC);
+      }
+
+      // Extra Effect 3: RGB Chromatic Aberration & Glitch Scanlines (Secret)
+      if (aura.extraIdx >= 3) {
+        drawSecretGlitchOverlay(cx, cy, t, aura);
+      }
+
+      // 10 Pattern Particles (Exact count: 12 / 19 / 26 / 33 / 40 / 47 / 54 / 61)
+      drawPatternParticles(cx, cy, t, aura);
+      drawMotifLayer(cx, cy, t, aura);
+
+      // Pull Celebration Burst Particles
+      for (let i = burstParticles.length - 1; i >= 0; i--) {
+        const bp = burstParticles[i];
+        bp.x += bp.vx;
+        bp.y += bp.vy;
+        bp.vx *= 0.94;
+        bp.vy *= 0.94;
+        bp.life -= bp.decay;
+        if (bp.life <= 0) { burstParticles.splice(i, 1); continue; }
+        const lf = Math.min(1, bp.life);
+        ctx.globalAlpha = lf;
+        if (bp.ring) {
+          ctx.strokeStyle = bp.color;
+          ctx.lineWidth = 2 + 4 * lf;
+          ctx.beginPath();
+          ctx.arc(bp.x, bp.y, Math.max(0, (1.25 - bp.life) * bp.max), 0, Math.PI * 2);
+          ctx.stroke();
+          continue;
+        }
+        ctx.fillStyle = bp.color;
+        ctx.beginPath();
+        ctx.arc(bp.x, bp.y, Math.max(0, bp.size * lf), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+
+      // 5. Central Crystalline Soul Core
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(auraScale, auraScale);
+      ctx.translate(-cx, -cy);
+      drawAuraCore(cx, cy, t, aura);
+      ctx.restore();
+    }
+
+    /**
+     * ============================================================================
+     * 11. KEYBOARD SHORTCUTS & BOOTSTRAP
+     * ============================================================================
+     */
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'INPUT') {
+        e.preventDefault();
+        const cutscene = document.getElementById('cutsceneOverlay');
+        const multiModal = document.getElementById('multiRollModal');
+        if (!cutscene.classList.contains('hidden')) {
+          closeCutscene();
+        } else if (!multiModal.classList.contains('hidden')) {
+          closeMultiRollModal();
+        } else if (!isRolling) {
+          triggerRoll(1);
+        }
+      } else if (e.code === 'Escape') {
+        closeCutscene();
+        closeMultiRollModal();
+        closeTab();
+        closeCustomModal();
+      }
+    });
+
+    window.onload = function () {
+      resizeCanvas();
+      loadGame();
+      syncAuraParticlePool(true);
+      updateWeatherUI();
+      updateAllUI();
+      setInterval(tickWeatherAndTimers, 1000);
+      requestAnimationFrame(renderLoop);
+    };
+  </script>
+</body>
+</html>
