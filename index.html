@@ -197,6 +197,10 @@
     #app, #drawerBody, #multiRollModal, #cutsceneOverlay, #toastContainer { text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
     #app { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
     .text-rainbow { text-shadow: none !important; }
+    /* ---- 発熱対策: 常時動く背景の上のぼかしは非常に重いので無効化 ---- */
+    .glass-panel, .glass-drawer, .glass-card { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+    body.eco *, body.eco *::before, body.eco *::after { animation-iteration-count: 1 !important; }
+    body.eco .glass-panel { box-shadow: none !important; }
     #equippedBanner { text-shadow: 0 0 8px rgba(0,0,0,0.95), 0 1px 3px #000; }
     #equippedBanner .bg-white\/10 { background: rgba(8, 12, 26, 0.6); }
     body.top-collapsed #hdrLeft, body.top-collapsed #activePotionsBar, body.top-collapsed #stageTagRow { display: none !important; }
@@ -267,6 +271,7 @@
       <!-- Right: Aether Currency & Live Luck Multiplier -->
       <div class="flex flex-col items-end gap-2 ml-auto">
         <div class="flex items-center gap-2">
+          <button id="qualityBtn" onclick="cycleQuality()" aria-label="画質切替" class="glass-panel rounded-xl h-9 sm:h-10 px-2 flex items-center justify-center text-xs font-bold text-white cursor-pointer">🔋標</button>
           <button id="toggleTopBtn" onclick="toggleTopBar()" aria-label="上部パネルの開閉" class="glass-panel rounded-xl w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-sm font-bold text-white cursor-pointer">▲</button>
           <!-- Aether Currency -->
           <div class="glass-panel rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 flex items-center gap-2">
@@ -2002,7 +2007,7 @@
       const lineEl = document.getElementById('destinyLine'), tapEl = document.getElementById('destinyTap');
       const line = DESTINY_LINES[aura.name] || th.fallback, col = (DESTINY_SCENE[aura.name] || [])[1] || th.color, T = th.dur;
       const isS = aura.rarity === 'S', isM = aura.rarity === 'M';
-      const dpr = Math.min(window.devicePixelRatio || 1, 2), W = window.innerWidth, H = window.innerHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, getQIndex() === 0 ? 1.5 : 1), W = window.innerWidth, H = window.innerHeight;
       cv.width = Math.floor(W * dpr); cv.height = Math.floor(H * dpr);
       const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
       c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
@@ -2023,6 +2028,8 @@
         c.globalAlpha = a; c.fillStyle = g; c.beginPath(); c.arc(cx, cy, rad, 0, 6.2832); c.fill();
       };
       const frame = (now) => {
+        if (getQIndex() > 0 && now - (st.last || 0) < 30) { st.raf = requestAnimationFrame(frame); return; }   // 30fps上限
+        st.last = now;
         const e = now - st.start, flashAt = T * 0.38, g = Math.min(1, e / flashAt), rev = e > T * 0.4;
         c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
         c.fillStyle = 'rgba(0,0,0,0.22)'; c.fillRect(0, 0, W, H);
@@ -2425,6 +2432,7 @@
 
     // 上下パネルの開閉 (オーラ表示を広げる)
     function applyUiCollapse() {
+      applyQuality(false);
       const st = gameState.settings, tb = document.getElementById('toggleTopBtn'), bb = document.getElementById('toggleBottomBtn');
       document.body.classList.toggle('top-collapsed', !!st.uiTopCollapsed);
       document.body.classList.toggle('bottom-collapsed', !!st.uiBottomCollapsed);
@@ -3370,8 +3378,28 @@
     let height = window.innerHeight || document.documentElement.clientHeight || 640;
     let dpr = 1;
 
+    // 画質プリセット: [高画質 / 標準(既定) / 省電力]  fps=描画上限, dpr=解像度上限, pf=粒子数の割合
+    const QUALITY = [
+      { name: '高画質', label: '高', fps: 60, dpr: 2, pf: 1 },
+      { name: '標準', label: '標', fps: 30, dpr: 1.5, pf: 0.75 },
+      { name: '省電力', label: '省', fps: 20, dpr: 1, pf: 0.5 }
+    ];
+    function getQIndex() { try { const q = gameState.settings.quality; return (q === 0 || q === 1 || q === 2) ? q : 1; } catch (e) { return 1; } }
+    function getQ() { return QUALITY[getQIndex()]; }
+    function applyQuality(resize) {
+      document.body.classList.toggle('eco', getQIndex() === 2);
+      const b = document.getElementById('qualityBtn');
+      if (b) b.textContent = '🔋' + getQ().label;
+      if (resize) { resizeCanvas(); syncAuraParticlePool(true); }
+    }
+    function cycleQuality() {
+      gameState.settings.quality = (getQIndex() + 1) % 3;
+      applyQuality(true); saveGame();
+      showToast(`🔋 画質: ${getQ().name} (${getQ().fps}fps)`);
+    }
+
     function resizeCanvas() {
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      dpr = Math.min(window.devicePixelRatio || 1, getQ().dpr);
       width = window.innerWidth || document.documentElement.clientWidth || 360;
       height = window.innerHeight || document.documentElement.clientHeight || 640;
       canvas.width = Math.max(1, Math.floor(width * dpr));
@@ -3431,12 +3459,13 @@
 
     function syncAuraParticlePool(forceReset = false) {
       const aura = getCurrentDisplayAura();
-      const sig = `${aura.no}_${aura.patternIdx}_${aura.particles}`;
-      if (forceReset || sig !== lastPoolSignature || auraParticles.length !== aura.particles) {
+      const want = Math.max(8, Math.ceil(aura.particles * getQ().pf));
+      const sig = `${aura.no}_${aura.patternIdx}_${want}`;
+      if (forceReset || sig !== lastPoolSignature || auraParticles.length !== want) {
         lastPoolSignature = sig;
         auraParticles.length = 0;
-        for (let i = 0; i < aura.particles; i++) {
-          auraParticles.push(createSingleAuraParticle(i, aura.particles, aura));
+        for (let i = 0; i < want; i++) {
+          auraParticles.push(createSingleAuraParticle(i, want, aura));
         }
       }
     }
@@ -3664,7 +3693,7 @@
           ctx.restore();
         }
         auraParticles.forEach((p, i) => {
-          p.angle += 0.022 * p.speed;
+          p.angle += 0.022 * p.speed * frameScale;
           const track = i % 3;
           const rx = 95 + track * 24;
           const ry = 34 + track * 9;
@@ -3684,7 +3713,7 @@
       // 1: 上昇 (Ascend)
       else if (pat === 1) {
         auraParticles.forEach((p, i) => {
-          p.progress += 0.008 * p.speed;
+          p.progress += 0.008 * p.speed * frameScale;
           if (p.progress > 1) p.progress -= 1;
           const py = cy + 125 - p.progress * 260;
           const px = cx + p.xOff * (1 - p.progress * 0.35) + Math.sin(t * 3 + p.phase) * 14;
@@ -3777,7 +3806,7 @@
       // 5: 降下 (Descend)
       else if (pat === 5) {
         auraParticles.forEach((p, i) => {
-          p.progress += 0.0085 * p.speed;
+          p.progress += 0.0085 * p.speed * frameScale;
           if (p.progress > 1) p.progress -= 1;
           const py = cy - 145 + p.progress * 285;
           const px = cx + p.xOff + Math.sin(t * 2.6 + p.phase) * 16;
@@ -3884,9 +3913,13 @@
       }
     }
 
+    let lastRenderTs = 0, frameScale = 1;
     function renderLoop(timestamp) {
-      try { renderFrame(timestamp); } catch (err) { console.error(err); try { ctx.restore(); } catch (_) {} ctx.globalAlpha = 1; }
       requestAnimationFrame(renderLoop);
+      timestamp = timestamp || performance.now();
+      if (timestamp - lastRenderTs < 1000 / getQ().fps - 3) return;   // fps上限 (発熱対策)
+      frameScale = Math.min(3, (timestamp - lastRenderTs) / 16.667) || 1; lastRenderTs = timestamp;
+      try { renderFrame(timestamp); } catch (err) { console.error(err); try { ctx.restore(); } catch (_) {} ctx.globalAlpha = 1; }
     }
 
     function renderFrame(timestamp) {
@@ -3911,7 +3944,7 @@
 
       // 2. Twinkling Background Starfield
       bgStars.forEach(s => {
-        s.y -= s.speed;
+        s.y -= s.speed * frameScale;
         if (s.y < 0) s.y = 1;
         const alpha = 0.28 + 0.58 * Math.sin(t * 2.2 + s.phase);
         ctx.fillStyle = `rgba(226, 232, 240, ${alpha})`;
@@ -3922,7 +3955,7 @@
 
       // 3. Probability Fluctuation / Weather Environment Layer
       if (currentWeather.id === 'starfall') {
-        if (Math.random() < 0.16) {
+        if (Math.random() < 0.16 * frameScale) {
           weatherParticles.push({
             x: Math.random() * width * 1.2,
             y: -20,
@@ -3933,9 +3966,9 @@
         }
         for (let i = weatherParticles.length - 1; i >= 0; i--) {
           const wp = weatherParticles[i];
-          wp.x += wp.vx;
-          wp.y += wp.vy;
-          wp.life -= 0.015;
+          wp.x += wp.vx * frameScale;
+          wp.y += wp.vy * frameScale;
+          wp.life -= 0.015 * frameScale;
           ctx.strokeStyle = `rgba(253, 224, 71, ${wp.life * 0.8})`;
           ctx.lineWidth = 2;
           ctx.beginPath();
@@ -4024,11 +4057,11 @@
       // Pull Celebration Burst Particles
       for (let i = burstParticles.length - 1; i >= 0; i--) {
         const bp = burstParticles[i];
-        bp.x += bp.vx;
-        bp.y += bp.vy;
+        bp.x += bp.vx * frameScale;
+        bp.y += bp.vy * frameScale;
         bp.vx *= 0.94;
         bp.vy *= 0.94;
-        bp.life -= bp.decay;
+        bp.life -= bp.decay * frameScale;
         if (bp.life <= 0) { burstParticles.splice(i, 1); continue; }
         const lf = Math.min(1, bp.life);
         ctx.globalAlpha = lf;
